@@ -13,7 +13,6 @@
    tenant sees only their own row (SUPABASE_INTEGRATION.md, Phase 2).
 =================================================================== */
 
-const OWNER_KEY = 'faiba_owner_phone_v1';
 const $ = id => document.getElementById(id);
 
 const params = new URLSearchParams(location.search);
@@ -30,10 +29,12 @@ function showLogin() {
   $('acctView').hidden = true;
   $('chatView').hidden = true;
   $('tenantNav').hidden = true;
+  $('tLogout').hidden = true;
 }
 function showAccount() {
   $('loginView').hidden = true;
   $('tenantNav').hidden = false;
+  $('tLogout').hidden = false;
   switchTenantView('account');
 }
 function switchTenantView(v) {
@@ -171,19 +172,6 @@ function renderAccount(t) {
         ${p.method === 'cash' ? '<span class="py-ref">💵 cash</span>' : (p.ref ? `<span class="py-ref">M-Pesa · ${escapeHtml(p.ref)}</span>` : '')}
       </span>
     </li>`).join('') : '<li class="cx-more">No payments recorded yet.</li>';
-
-  // WhatsApp the owner (only if the owner set their number in Settings)
-  const owner = params.get('owner') || localStorage.getItem(OWNER_KEY) || '';
-  const ownerPhone = normalizePhone(owner);
-  if (ownerPhone) {
-    const msg = `Habari, ni ${t.name}${t.unit ? ' (' + t.unit + ')' : ''}. I have a question about my internet account.`;
-    $('ownerBtn').hidden = false;
-    $('ownerBtn').onclick = () => window.open(`https://wa.me/${ownerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-    $('noOwnerHint').hidden = true;
-  } else {
-    $('ownerBtn').hidden = true;
-    $('noOwnerHint').hidden = false;
-  }
 
   updateChatBadge();
   showAccount();

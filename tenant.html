@@ -27,7 +27,7 @@
     <span class="tenant-brand">Faiba<span class="brand-accent">Ledger</span></span>
     <div class="topbar-right">
       <span class="pill pill-away">tenant view</span>
-      <button class="icon-btn" id="tLogout" type="button" title="Sign out" aria-label="Sign out">
+      <button class="icon-btn" id="tLogout" type="button" title="Sign out" aria-label="Sign out" hidden>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/></svg>
       </button>
     </div>
@@ -36,19 +36,23 @@
   <!-- ================= LOGIN ================= -->
   <section class="tenant-login" id="loginView">
     <div class="tenant-card">
+      <span class="auth-lock" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      </span>
       <h1>Check your internet account</h1>
-      <p class="tenant-sub">See how much you owe, what you have paid and when your cycle renews — without having to ask.</p>
+      <p class="tenant-sub">See what you owe, what you've paid and when your next cycle renews — no need to ask.</p>
 
       <div class="auth-err" id="tErr" hidden></div>
 
-      <form id="tLoginForm" autocomplete="off">
+      <form id="tLoginForm" class="auth-form" autocomplete="off">
         <label class="field">
           <span>Your phone number</span>
           <input type="tel" name="phone" id="tPhone" inputmode="tel" placeholder="07xx xxx xxx" autocomplete="tel">
         </label>
         <label class="field">
-          <span>Access code <em>the one your owner sent by WhatsApp</em></span>
-          <input type="text" name="pin" id="tPin" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="one-time-code">
+          <span>Access code</span>
+          <input type="text" name="pin" id="tPin" inputmode="numeric" maxlength="6" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="one-time-code">
+          <span class="field-note">The 6-digit code your owner sent by WhatsApp.</span>
         </label>
         <button class="btn btn-primary btn-block" type="submit">View my account</button>
       </form>
@@ -83,10 +87,6 @@
       <ul class="ledger-list" id="acPays"></ul>
     </div>
 
-    <div class="t-actions">
-      <button class="btn btn-primary btn-block" id="ownerBtn" type="button" hidden>WhatsApp the owner</button>
-      <p class="tenant-hint" id="noOwnerHint" hidden>Message the owner directly on WhatsApp if you have a question.</p>
-    </div>
   </section>
 
   <!-- ================= CHAT ================= -->

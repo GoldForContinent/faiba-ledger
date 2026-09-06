@@ -1412,8 +1412,8 @@ button { cursor: pointer; }
 .field input, .field select {
   padding: 10px 12px;
   border-radius: var(--r);
-  background: var(--ink-2);
-  border: 1px solid transparent;
+  background: var(--bg-2);
+  border: 1px solid var(--glass-1);
   color: var(--ink-1);
   font-size: 14px;
   transition: border-color .15s ease, box-shadow .15s ease;
@@ -1772,7 +1772,7 @@ button { cursor: pointer; }
   flex: 1;
   padding: 10px 12px;
   border-radius: var(--r);
-  background: var(--ink-2);
+  background: var(--bg-2);
   border: 1px solid var(--glass-1);
   color: var(--ink-1);
   font-size: 13.5px;
@@ -1834,17 +1834,19 @@ button { cursor: pointer; }
   font-size: 17px;
 }
 .tenant-card {
-  padding: 28px 24px;
+  width: 100%;
+  max-width: 380px;
+  padding: 30px 24px;
   border-radius: var(--r3);
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.08);
   backdrop-filter: blur(20px) saturate(1.3);
   -webkit-backdrop-filter: blur(20px) saturate(1.3);
   box-shadow: 0 16px 48px -12px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
-  margin-top: 20px;
+  margin-top: 12px;
 }
 .tenant-card h1 {
-  font-size: 20px;
+  font-size: 21px;
   text-align: center;
   margin-bottom: 4px;
 }
@@ -1858,7 +1860,9 @@ button { cursor: pointer; }
   text-align: center;
   font-size: 12px;
   color: var(--ink-3);
-  margin-top: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-1);
 }
 .tenant-foot {
   text-align: center;
@@ -1867,7 +1871,9 @@ button { cursor: pointer; }
   padding: 20px 0;
 }
 .tenant-login {
-  padding-top: 10px;
+  display: flex;
+  justify-content: center;
+  padding: 5vh 0 4vh;
 }
 .tenant-account {
   animation: fadeUp .25s ease both;
@@ -1898,13 +1904,6 @@ button { cursor: pointer; }
 .t-phone {
   font-size: 12px;
   color: var(--ink-3);
-}
-
-.t-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 14px 0;
 }
 
 /* ------------------------------------------------------------------
