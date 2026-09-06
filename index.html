@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Faiba Ledger — resale control room</title>
+<script>if (!localStorage.getItem('sb-zmzsahvhczzxqobiqjzj-auth-token')) location.replace('login.html');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"></div>
+
+<div class="app">
+
+  <!-- ================= HEADER ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M2.5 13.5a10 10 0 0 1 19 0"/>
+          <path d="M5.8 16a6.5 6.5 0 0 1 12.4 0"/>
+          <path d="M9.5 18.5a2.5 2.5 0 0 1 5 0"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">Faiba<span class="brand-accent">Ledger</span></span>
+        <span class="brand-sub">resale control room</span>
+      </span>
+    </div>
+    <div class="topbar-right">
+      <span class="date-chip" id="todayChip"></span>
+      <button class="icon-btn icon-btn-lg" id="settingsBtn" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>
+      </button>
+      <button class="icon-btn icon-btn-lg" id="logoutBtn" type="button" title="Lock &amp; sign out" aria-label="Lock and sign out">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="btn btn-primary" id="addTopBtn" type="button">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add tenant
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= VIEW: TENANTS ================= -->
+  <section class="view" id="view-tenants">
+    <div class="hero-tiles" id="heroTiles"></div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <input type="search" id="tenantSearch" placeholder="Search name, unit or phone…" autocomplete="off">
+      </div>
+      <div class="chip-row" id="chipRow" role="tablist" aria-label="Filter tenants">
+        <button class="chip is-active" data-f="all" type="button">All</button>
+        <button class="chip" data-f="active" type="button">Active</button>
+        <button class="chip" data-f="away" type="button">Away</button>
+        <button class="chip chip-owing" data-f="owing" type="button">Owing</button>
+      </div>
+    </div>
+
+    <div class="tenant-list" id="tenantList" aria-label="Tenants"></div>
+
+    <div class="dim-card" id="tenantNoMatch" hidden>
+      No tenant matches that search or filter.
+    </div>
+
+    <div class="empty-state" id="tenantEmpty" hidden>
+      <div class="empty-graphic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 13.5a10 10 0 0 1 19 0"/>
+          <path d="M5.8 16a6.5 6.5 0 0 1 12.4 0"/>
+          <path d="M9.5 18.5a2.5 2.5 0 0 1 5 0"/>
+          <path d="M12 9V4m-2 2 4-4m0 4-4-4" opacity="0"/>
+        </svg>
+      </div>
+      <h2>No tenants on the line yet</h2>
+      <p>Add your first tenant to open the ledger. For people already using the internet, set the day they actually started — every cycle since is billed automatically.</p>
+      <button class="btn btn-primary" id="addEmptyBtn" type="button">Add your first tenant</button>
+    </div>
+  </section>
+
+  <!-- ================= VIEW: INBOX ================= -->
+  <section class="view" id="view-inbox" hidden>
+    <div class="report-head">
+      <h1 class="view-title">Inbox</h1>
+      <div class="inbox-perms">
+        <span class="pill pill-away" id="notifState">pop-ups off</span>
+        <button class="btn btn-ghost btn-sm" id="notifBtn" type="button">Allow pop-ups</button>
+      </div>
+    </div>
+    <p class="report-headline">Tenant messages. Balance questions are answered automatically before they reach you.</p>
+    <div class="collect-list" id="inboxList"></div>
+  </section>
+
+  <!-- ================= VIEW: COLLECT ================= -->
+  <section class="view" id="view-collect" hidden>
+    <h1 class="view-title">Collect</h1>
+    <div class="collect-hero" id="collectMeta"></div>
+    <div class="collect-list" id="collectList"></div>
+  </section>
+
+  <!-- ================= VIEW: REPORT ================= -->
+  <section class="view" id="view-report" hidden>
+    <div class="report-head">
+      <h1 class="view-title">Income report</h1>
+      <div class="chip-row" id="reportChips">
+        <button class="chip is-active" data-rm="month" type="button">This month</button>
+        <button class="chip" data-rm="all" type="button">All time</button>
+      </div>
+    </div>
+    <p class="report-headline" id="reportHeadline"></p>
+
+    <div class="report-tiles">
+      <div class="tile rt-up">
+        <span class="tile-label">Received</span>
+        <span class="tile-value up" id="rCollected">Sh 0</span>
+      </div>
+      <div class="tile rt-warn">
+        <span class="tile-label">Still owed</span>
+        <span class="tile-value" id="rOutstanding">Sh 0</span>
+      </div>
+      <div class="tile rt-info">
+        <span class="tile-label">Prepaid ahead</span>
+        <span class="tile-value info" id="rCredit">Sh 0</span>
+      </div>
+    </div>
+    <p class="report-hint" id="reportHint"></p>
+    <div class="report-grid" id="reportGrid"></div>
+  </section>
+
+  <!-- ================= VIEW: AUDIT ================= -->
+  <section class="view" id="view-audit" hidden>
+    <div class="report-head">
+      <h1 class="view-title">Audit log</h1>
+    </div>
+    <p class="report-headline">A trail of every change made to the ledger — who did what and when.</p>
+    <div class="audit-list" id="auditList"></div>
+  </section>
+
+</div><!-- /.app -->
+
+<!-- ================= BOTTOM NAV ================= -->
+<nav class="bottom-nav" aria-label="Main">
+  <button class="nav-tab is-active" data-tab="tenants" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 4.5 9.5v9a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-9Z"/><path d="M9 20v-6h6v6"/></svg>
+    <span>Tenants</span>
+  </button>
+  <button class="nav-tab" data-tab="inbox" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10a2 2 0 0 1-2 2H9l-4.5 3.5V18a2 2 0 0 1-2-2Z" opacity="0"/><path d="M4 6h16v9a2 2 0 0 1-2 2h-9l-5 3v-3H6a2 2 0 0 1-2-2Z"/></svg>
+    <span>Inbox</span>
+    <span class="nav-badge" id="inboxBadge" hidden>0</span>
+  </button>
+  <button class="nav-tab" data-tab="collect" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9 9.2h4.2a1.6 1.6 0 0 1 0 3.2H10a1.6 1.6 0 0 0 0 3.2h4.4"/><path d="M12 6.5v11"/></svg>
+    <span>Collect</span>
+    <span class="nav-badge" id="collectBadge" hidden>0</span>
+  </button>
+  <button class="nav-tab" data-tab="report" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 20V11M12 20V5m7.5 15v-8"/><path d="M3 20.5h18"/></svg>
+    <span>Report</span>
+  </button>
+  <button class="nav-tab" data-tab="audit" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+    <span>Audit</span>
+  </button>
+</nav>
+
+<!-- ================= SHEETS ================= -->
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+
+<!-- ---------- Add tenant ---------- -->
+<div class="sheet" id="addTenantSheet" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="addTitle">New tenant</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <form id="addTenantForm" autocomplete="off">
+    <div class="field-row">
+      <label class="field">
+        <span>Name</span>
+        <input type="text" name="name" required placeholder="e.g. Wanjiru M.">
+      </label>
+      <label class="field field-sm">
+        <span>Unit</span>
+        <input type="text" name="unit" required placeholder="e.g. B4">
+      </label>
+    </div>
+    <label class="field">
+      <span>Phone <em>for WhatsApp reminders</em></span>
+      <input type="tel" name="phone" placeholder="07xx xxx xxx">
+    </label>
+
+    <fieldset class="pkg-picker" data-name="package">
+      <legend>Package</legend>
+      <label class="pkg-option"><input type="radio" name="package" value="daily" checked><span class="pkg-card"><strong>Daily</strong><em>Sh 30</em></span></label>
+      <label class="pkg-option"><input type="radio" name="package" value="weekly-180"><span class="pkg-card"><strong>Weekly</strong><em>Sh 180</em></span></label>
+      <label class="pkg-option"><input type="radio" name="package" value="weekly"><span class="pkg-card"><strong>Weekly</strong><em>Sh 200</em></span></label>
+      <label class="pkg-option"><input type="radio" name="package" value="monthly-500"><span class="pkg-card"><strong>Monthly</strong><em>Sh 500</em></span></label>
+      <label class="pkg-option"><input type="radio" name="package" value="monthly-700"><span class="pkg-card"><strong>Monthly</strong><em>Sh 700</em></span></label>
+      <label class="pkg-option"><input type="radio" name="package" value="monthly-1000"><span class="pkg-card"><strong>Monthly</strong><em>Sh 1000</em></span></label>
+      <label class="pkg-option"><input type="radio" name="package" value="monthly"><span class="pkg-card"><strong>Monthly</strong><em>Sh 800</em></span></label>
+    </fieldset>
+
+    <div class="field-note">Already on your network? Set the day they <b>started using it</b> — every cycle since that day is billed automatically, so the balance is honest from day one.</div>
+    <div class="field-row">
+      <label class="field">
+        <span>Started using internet</span>
+        <input type="date" name="started">
+      </label>
+      <label class="field field-sm">
+        <span>Owed before start <em>(Sh)</em></span>
+        <input type="number" name="arrears" min="0" step="1" value="0" placeholder="0">
+      </label>
+    </div>
+
+    <div class="divider"><span>Money received now</span></div>
+    <div class="field-row">
+      <label class="field field-sm">
+        <span>Amount <em>(Sh)</em></span>
+        <input type="number" name="payAmount" min="0" step="1" value="0" placeholder="0">
+      </label>
+    </div>
+    <div class="pay-method" id="addPayMethod">
+      <label class="pm-option"><input type="radio" name="payMethod" value="mpesa" checked><span class="pm-card"><strong>M-Pesa</strong><em>send the code</em></span></label>
+      <label class="pm-option"><input type="radio" name="payMethod" value="cash"><span class="pm-card"><strong>Cash</strong><em>no code needed</em></span></label>
+    </div>
+    <div class="field-row">
+      <label class="field field-sm">
+        <span>Paid on</span>
+        <input type="date" name="payDate">
+      </label>
+      <label class="field field-sm" id="addPayRefField">
+        <span>M-Pesa code</span>
+        <input type="text" name="payRef" placeholder="e.g. QWE4R5T6P7">
+      </label>
+    </div>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Add to the line</button>
+    </div>
+  </form>
+</div>
+
+<!-- ---------- Tenant detail ---------- -->
+<div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="dName">
+  <div class="sheet-handle"></div>
+  <div class="detail-head">
+    <div class="d-person">
+      <span class="d-avatar" id="dAvatar">—</span>
+      <span class="d-id">
+        <span class="d-name" id="dName">—</span>
+        <span class="d-sub"><span id="dUnit">—</span> · <span id="dPkg">—</span></span>
+      </span>
+    </div>
+    <span class="pill pill-status" id="dStatus">—</span>
+  </div>
+  <p class="d-phone">📱 <span id="dPhone">—</span></p>
+
+  <div class="state-card is-clear" id="dStateCard"></div>
+
+  <div class="detail-actions" id="dActions"></div>
+  <div class="kpi-strip" id="dTenureStrip"></div>
+
+  <div class="ledger-section">
+    <h3 class="ledger-head">Billed cycles <span>every cycle since they started</span></h3>
+    <ul class="ledger-list" id="dCycles"></ul>
+  </div>
+
+  <div class="ledger-section">
+    <h3 class="ledger-head">Payments <span id="dTotalPaid"></span></h3>
+    <ul class="ledger-list" id="dPayments"></ul>
+  </div>
+
+  <div class="access-card" id="dAccess"></div>
+
+  <div class="detail-footer">
+    <button class="btn btn-ghost btn-sm" id="editBtn" type="button">Edit details</button>
+    <button class="btn btn-danger-ghost btn-sm" id="deleteBtn" type="button">Remove from ledger</button>
+  </div>
+</div>
+
+<!-- ---------- Tenant message thread ---------- -->
+<div class="sheet" id="threadSheet" role="dialog" aria-modal="true" aria-labelledby="threadTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="threadTitle">Messages</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="thread-who" id="threadWho"></div>
+  <div class="chat chat-tall" id="threadMsgs"></div>
+  <div class="chips-row" id="ownerChips"></div>
+  <div class="compose" id="ownerCompose">
+    <input type="text" id="ownerComposeInput" autocomplete="off" placeholder="Type a message…">
+    <button class="btn btn-primary btn-sm" id="ownerComposeSend" type="button">Send</button>
+  </div>
+  <div class="thread-actions">
+    <button class="btn btn-icon-text" id="threadWa" type="button">Continue in WhatsApp</button>
+    <button class="btn btn-danger-ghost btn-sm" id="threadDel" type="button">Delete</button>
+  </div>
+</div>
+
+<!-- ---------- Record payment ---------- -->
+<div class="sheet" id="paySheet" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="payTitle">Record payment</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <p class="context" id="payContext"></p>
+  <form id="payForm" autocomplete="off">
+    <label class="field field-big">
+      <span>Amount received (Sh)</span>
+      <input type="number" name="amount" min="1" step="1" required placeholder="0">
+    </label>
+    <div class="pay-method" id="payMethod">
+      <label class="pm-option"><input type="radio" name="method" value="mpesa" checked><span class="pm-card"><strong>M-Pesa</strong><em>send the code</em></span></label>
+      <label class="pm-option"><input type="radio" name="method" value="cash"><span class="pm-card"><strong>Cash</strong><em>no code needed</em></span></label>
+    </div>
+    <div class="field-row">
+      <label class="field">
+        <span>Received on</span>
+        <input type="date" name="payDate">
+      </label>
+      <label class="field" id="payRefField">
+        <span>M-Pesa code</span>
+        <input type="text" name="ref" placeholder="e.g. QWE4R5T6P7">
+      </label>
+    </div>
+    <label class="field">
+      <span>Note <em>optional</em></span>
+      <input type="text" name="note" placeholder="e.g. paid for both cycles">
+    </label>
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Save payment</button>
+    </div>
+  </form>
+</div>
+
+<!-- ---------- Mark away ---------- -->
+<div class="sheet" id="awaySheet" role="dialog" aria-modal="true" aria-labelledby="awayTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="awayTitle">Mark away</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <p class="context">They stop using the internet for a while. The half-finished cycle is billed for the days actually used, and the tenure is closed — nothing accrues while they're away.</p>
+  <form id="awayForm" autocomplete="off">
+    <label class="field">
+      <span>Last day they were on the line</span>
+      <input type="date" name="awayDate">
+    </label>
+    <div class="preview" id="awayPreview"></div>
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Mark away</button>
+    </div>
+  </form>
+</div>
+
+<!-- ---------- Bring back ---------- -->
+<div class="sheet" id="backSheet" role="dialog" aria-modal="true" aria-labelledby="backTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="backTitle">Welcome back</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <p class="context">Returning starts a brand-new tenure from the arrival date — the clock and billing begin fresh, on the package they take now.</p>
+  <form id="backForm" autocomplete="off">
+    <div class="field-row">
+      <label class="field">
+        <span>Back on the line since</span>
+        <input type="date" name="backDate">
+      </label>
+    </div>
+    <fieldset class="pkg-picker" data-name="backPackage">
+      <legend>Package for the new tenure</legend>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="daily"><span class="pkg-card"><strong>Daily</strong><em>Sh 30</em></span></label>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="weekly-180"><span class="pkg-card"><strong>Weekly</strong><em>Sh 180</em></span></label>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="weekly"><span class="pkg-card"><strong>Weekly</strong><em>Sh 200</em></span></label>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly-500"><span class="pkg-card"><strong>Monthly</strong><em>Sh 500</em></span></label>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly-700"><span class="pkg-card"><strong>Monthly</strong><em>Sh 700</em></span></label>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly-1000"><span class="pkg-card"><strong>Monthly</strong><em>Sh 1000</em></span></label>
+      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly"><span class="pkg-card"><strong>Monthly</strong><em>Sh 800</em></span></label>
+    </fieldset>
+    <div class="preview" id="backPreview"></div>
+    <div class="divider"><span>Payment now <em>optional</em></span></div>
+    <div class="field-row">
+      <label class="field field-sm">
+        <span>Amount <em>(Sh)</em></span>
+        <input type="number" name="payAmount" min="0" step="1" value="0" placeholder="0">
+      </label>
+    </div>
+    <div class="pay-method" id="backPayMethod">
+      <label class="pm-option"><input type="radio" name="payMethod" value="mpesa" checked><span class="pm-card"><strong>M-Pesa</strong><em>send the code</em></span></label>
+      <label class="pm-option"><input type="radio" name="payMethod" value="cash"><span class="pm-card"><strong>Cash</strong><em>no code needed</em></span></label>
+    </div>
+    <div class="field-row">
+      <label class="field field-sm">
+        <span>Paid on</span>
+        <input type="date" name="payDate">
+      </label>
+      <label class="field field-sm" id="backPayRefField">
+        <span>M-Pesa code</span>
+        <input type="text" name="payRef" placeholder="e.g. QWE4R5T6P7">
+      </label>
+    </div>
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">They're back</button>
+    </div>
+  </form>
+</div>
+
+<!-- ---------- Edit ---------- -->
+<div class="sheet" id="editSheet" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="editTitle">Edit details</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <form id="editForm" autocomplete="off">
+    <label class="field">
+      <span>Name</span>
+      <input type="text" name="name" required>
+    </label>
+    <label class="field">
+      <span>Unit</span>
+      <input type="text" name="unit" required>
+    </label>
+    <label class="field">
+      <span>Phone</span>
+      <input type="tel" name="phone" placeholder="07xx xxx xxx">
+    </label>
+    <label class="field">
+      <span>First day on the line <em>changes all cycle billing</em></span>
+      <input type="date" name="firstStart">
+    </label>
+    <label class="field">
+      <span>Opening balance (Sh) <em>debt carried from before that first day</em></span>
+      <input type="number" name="arrears" min="0" step="1" value="0">
+    </label>
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Save changes</button>
+    </div>
+  </form>
+</div>
+
+<!-- ---------- Settings ---------- -->
+<div class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 class="sheet-title" id="settingsTitle">Settings</h2>
+    <button class="sheet-x" data-close type="button" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <form id="settingsForm" autocomplete="off">
+    <label class="field">
+      <span>Your WhatsApp number <em>for the "message owner" button on tenant pages</em></span>
+      <input type="tel" name="ownerPhone" placeholder="07xx xxx xxx">
+    </label>
+    <div class="field-note">Shown on the tenant page so they can reach you on WhatsApp.</div>
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Save settings</button>
+    </div>
+  </form>
+  <div class="divider"><span>Cloud data</span></div>
+  <div class="field-note">If this device still has tenants that aren't in the online ledger, copy them up once — anything already online is skipped.</div>
+  <button type="button" class="btn btn-ghost btn-block" id="uploadCloudBtn">Upload this device's tenants to the cloud</button>
+  <div class="divider"><span>Team — who runs the ledger</span></div>
+  <div class="field-note">Add someone you trust to help run the ledger. They sign in with the email and password you give them, and can change their own password.</div>
+  <div id="teamList" class="team-list"></div>
+  <form id="addOpForm" class="team-form" autocomplete="off">
+    <div class="field-note">Add a teammate (only the owner can):</div>
+    <label class="field">
+      <span>Name</span>
+      <input name="opName" placeholder="e.g. Dennis">
+    </label>
+    <label class="field">
+      <span>Email</span>
+      <input type="email" name="opEmail" placeholder="friend@example.com" required>
+    </label>
+    <label class="field">
+      <span>Temporary password</span>
+      <input type="password" name="opPwd" minlength="6" placeholder="At least 6 characters" required>
+    </label>
+    <button type="submit" class="btn btn-primary btn-block" id="addOpBtn">Add as admin</button>
+  </form>
+  <p class="field-note" id="teamOwnerNote" hidden>Only the owner can add or remove teammates.</p>
+  <div class="divider"><span>My password</span></div>
+  <form id="changePwdForm" class="team-form" autocomplete="off">
+    <label class="field">
+      <span>New password</span>
+      <input type="password" name="newPwd" minlength="6" placeholder="At least 6 characters" required>
+    </label>
+    <button type="submit" class="btn btn-ghost btn-block">Change my password</button>
+  </form>
+</div>
+
+<!-- ---------- Modal ---------- -->
+<div class="modal" id="modal" role="alertdialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-card">
+    <h3 id="modalTitle">Confirm</h3>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="modalOk" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="ledger-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

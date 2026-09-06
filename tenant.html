@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>My account — Faiba Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="tenant-page">
+
+<div class="aurora" aria-hidden="true"></div>
+
+<main class="tenant-shell">
+
+  <header class="tenant-top">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M2.5 13.5a10 10 0 0 1 19 0"/>
+        <path d="M5.8 16a6.5 6.5 0 0 1 12.4 0"/>
+        <path d="M9.5 18.5a2.5 2.5 0 0 1 5 0"/>
+      </svg>
+    </span>
+    <span class="tenant-brand">Faiba<span class="brand-accent">Ledger</span></span>
+    <div class="topbar-right">
+      <span class="pill pill-away">tenant view</span>
+      <button class="icon-btn" id="tLogout" type="button" title="Sign out" aria-label="Sign out">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= LOGIN ================= -->
+  <section class="tenant-login" id="loginView">
+    <div class="tenant-card">
+      <h1>Check your internet account</h1>
+      <p class="tenant-sub">See how much you owe, what you have paid and when your cycle renews — without having to ask.</p>
+
+      <div class="auth-err" id="tErr" hidden></div>
+
+      <form id="tLoginForm" autocomplete="off">
+        <label class="field">
+          <span>Your phone number</span>
+          <input type="tel" name="phone" id="tPhone" inputmode="tel" placeholder="07xx xxx xxx" autocomplete="tel">
+        </label>
+        <label class="field">
+          <span>Access code <em>the one your owner sent by WhatsApp</em></span>
+          <input type="text" name="pin" id="tPin" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="one-time-code">
+        </label>
+        <button class="btn btn-primary btn-block" type="submit">View my account</button>
+      </form>
+
+      <p class="tenant-hint">No code yet? Ask your internet owner — they can send one in one tap.</p>
+    </div>
+  </section>
+
+  <!-- ================= ACCOUNT ================= -->
+  <section class="tenant-account" id="acctView" hidden>
+    <div class="t-person">
+      <span class="d-avatar" id="tAvatar">—</span>
+      <span class="t-id">
+        <span class="t-name" id="tName">—</span>
+        <span class="t-sub"><span id="tUnit">—</span> · <span id="tPkg">—</span></span>
+        <span class="t-phone" id="tPhoneLine">—</span>
+      </span>
+      <span class="pill pill-status" id="tStatus">—</span>
+    </div>
+
+    <div class="state-card is-clear" id="acState"></div>
+
+    <div class="kpi-strip" id="acKpi"></div>
+
+    <div class="ledger-section">
+      <h3 class="ledger-head">My cycles <span>what has been billed</span></h3>
+      <ul class="ledger-list" id="acCycles"></ul>
+    </div>
+
+    <div class="ledger-section">
+      <h3 class="ledger-head">My payments</h3>
+      <ul class="ledger-list" id="acPays"></ul>
+    </div>
+
+    <div class="t-actions">
+      <button class="btn btn-primary btn-block" id="ownerBtn" type="button" hidden>WhatsApp the owner</button>
+      <p class="tenant-hint" id="noOwnerHint" hidden>Message the owner directly on WhatsApp if you have a question.</p>
+    </div>
+  </section>
+
+  <!-- ================= CHAT ================= -->
+  <section class="view chat-view" id="chatView" hidden>
+    <div class="chat-head">
+      <h1 class="view-title">Message the owner</h1>
+      <div class="chat-head-side">
+        <button class="btn btn-ghost btn-sm" id="tDelThread" type="button">🗑 Delete</button>
+        <span class="pill pill-status" id="tOwnerStatus">checking…</span>
+      </div>
+    </div>
+    <p class="report-headline">Quick messages land straight in your owner's inbox. Balance questions are answered instantly.</p>
+    <div class="chat chat-main" id="tThread" aria-live="polite"></div>
+    <div class="chips-row" id="tChips"></div>
+    <div class="compose" id="composeWrap">
+      <input type="text" id="composeInput" autocomplete="off" placeholder="Type a message…">
+      <button class="btn btn-primary btn-sm" id="composeSend" type="button">Send</button>
+    </div>
+  </section>
+
+  <p class="tenant-foot">Faiba Ledger · you are seeing only your own record, read-only.</p>
+</main>
+
+<nav class="bottom-nav tenant-nav" id="tenantNav" aria-label="My account" hidden>
+  <button class="nav-tab is-active" data-tview="account" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>
+    <span>My account</span>
+  </button>
+  <button class="nav-tab" data-tview="chat" type="button">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10a2 2 0 0 1-2 2h-9l-5 3v-3H6a2 2 0 0 1-2-2Z"/></svg>
+    <span>Chat</span>
+    <span class="nav-badge" id="tenantChatBadge" hidden>0</span>
+  </button>
+</nav>
+
+<script src="ledger-core.js"></script>
+<script src="app-tenant.js"></script>
+</body>
+</html>

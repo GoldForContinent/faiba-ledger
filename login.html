@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>Unlock — Faiba Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-page">
+
+<div class="aurora" aria-hidden="true"></div>
+
+<main class="auth-shell">
+  <div class="auth-brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M2.5 13.5a10 10 0 0 1 19 0"/>
+        <path d="M5.8 16a6.5 6.5 0 0 1 12.4 0"/>
+        <path d="M9.5 18.5a2.5 2.5 0 0 1 5 0"/>
+      </svg>
+    </span>
+    <span class="brand-text">
+      <span class="brand-name">Faiba<span class="brand-accent">Ledger</span></span>
+      <span class="brand-sub">reseller control room</span>
+    </span>
+  </div>
+
+  <div class="auth-card">
+    <div class="auth-toggle" role="tablist" aria-label="Who is signing in">
+      <button type="button" class="auth-tab is-active" id="tabOwner" role="tab" aria-selected="true">Owner</button>
+      <button type="button" class="auth-tab" id="tabTenant" role="tab" aria-selected="false">Tenant</button>
+    </div>
+
+    <!-- Owner / operator sign-in -->
+    <div id="ownerPanel" role="tabpanel">
+      <svg class="auth-lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <h1>Sign in to the ledger</h1>
+      <p class="auth-sub">Manage your tenants, payments and messages.</p>
+
+      <div class="auth-err" id="authErr" hidden></div>
+
+      <form id="loginForm" class="auth-form" autocomplete="off">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" id="lgEmail" autocomplete="email" placeholder="you@example.com" required>
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" id="lgPwd" autocomplete="current-password" placeholder="Your password" required>
+        </label>
+        <button type="button" class="link-btn" id="forgotBtn">Forgot password?</button>
+        <button class="btn btn-primary btn-block" id="lgBtn" type="submit">Sign in</button>
+      </form>
+    </div>
+
+    <!-- Tenant self-service -->
+    <div id="tenantPanel" role="tabpanel" hidden>
+      <svg class="auth-lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 13a8 8 0 0 1 16 0"/><path d="M9 16.5a3.5 3.5 0 0 1 6 0"/><circle cx="12" cy="11" r="1.4"/></svg>
+      <h1>Tenant access</h1>
+      <p class="auth-sub">The phone number the owner has on file, plus your personal access code.</p>
+
+      <div class="auth-err" id="tenantErr" hidden></div>
+
+      <form id="tenantForm" class="auth-form" autocomplete="off">
+        <label class="field">
+          <span>Phone number</span>
+          <input type="tel" name="phone" id="tnPhone" placeholder="07xx xxx xxx" required>
+        </label>
+        <label class="field">
+          <span>Access code</span>
+          <input type="text" name="pin" id="tnPin" inputmode="numeric" placeholder="4-digit code" required>
+        </label>
+        <button class="btn btn-primary btn-block" id="tnBtn" type="submit">Open my account</button>
+      </form>
+      <p class="auth-sub dim-note">Haven't got a code? Ask the owner — they share it from your account page (Tenant access).</p>
+    </div>
+
+    <div id="authNote" class="auth-note" hidden></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  function setMode(mode) {
+    var owner = mode === 'owner';
+    $('tabOwner').classList.toggle('is-active', owner);
+    $('tabTenant').classList.toggle('is-active', !owner);
+    $('tabOwner').setAttribute('aria-selected', String(owner));
+    $('tabTenant').setAttribute('aria-selected', String(!owner));
+    $('ownerPanel').hidden = !owner;
+    $('tenantPanel').hidden = owner;
+    hideErr();
+  }
+  function err(el, msg) {
+    el.textContent = msg;
+    el.hidden = false;
+    setTimeout(function () { el.hidden = true; }, 7000);
+  }
+  function hideErr() { $('authErr').hidden = true; $('tenantErr').hidden = true; }
+  function setBusy(busy) {
+    var btn = $('lgBtn');
+    btn.disabled = busy;
+    btn.textContent = busy ? 'Signing in…' : 'Sign in';
+  }
+  function note(msg) {
+    var n = $('authNote');
+    n.textContent = msg;
+    n.hidden = false;
+    setTimeout(function () { n.hidden = true; }, 8000);
+  }
+
+  $('tabOwner').addEventListener('click', function () { setMode('owner'); });
+  $('tabTenant').addEventListener('click', function () { setMode('tenant'); });
+
+  // Message from the manager when an account is not an operator (e.g. ?denied=1)
+  if (new URLSearchParams(location.search).get('denied') === '1') {
+    note('That account isn\'t an operator on this ledger. Ask the owner to add you.');
+  }
+
+  // Already signed in as owner on this device? Go straight in.
+  if (hasSupabaseSession()) location.replace('index.html');
+
+  // ---- Owner sign-in ----
+  $('loginForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var email = $('lgEmail').value.trim();
+    var pwd = $('lgPwd').value;
+    if (!email || !pwd) { err($('authErr'), 'Enter your email and password.'); return; }
+    if (!initSupabaseClient()) { err($('authErr'), 'Could not reach the server — check your internet and try again.'); return; }
+    setBusy(true);
+    try {
+      var result = await supabaseClient.auth.signInWithPassword({ email: email, password: pwd });
+      if (result.error) throw result.error;
+      location.replace('index.html');
+    } catch (e2) {
+      var msg = String((e2 && e2.message) || e2);
+      if (/invalid login credentials/i.test(msg)) {
+        err($('authErr'), 'No account matches that email and password. Check for typos and try again.');
+      } else if (/email not confirmed/i.test(msg)) {
+        err($('authErr'), 'Your email hasn\'t been activated yet — check your inbox for the activation link and tap it, then sign in again. No link? Tap "Forgot password?" to get a new one.');
+      } else {
+        err($('authErr'), 'Could not sign in: ' + msg);
+      }
+      setBusy(false);
+    }
+  });
+
+  $('forgotBtn').addEventListener('click', async function () {
+    var email = $('lgEmail').value.trim();
+    if (!email) { err($('authErr'), 'Enter your email first — the recovery link is sent to it.'); return; }
+    if (!initSupabaseClient()) { err($('authErr'), 'Could not reach the server — try again.'); return; }
+    try {
+      var res = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: location.href });
+      if (res.error) throw res.error;
+      note('Recovery email sent to ' + email + ' — open the link and choose a new password.');
+    } catch (e3) {
+      err($('authErr'), 'Could not send the recovery email: ' + String((e3 && e3.message) || e3));
+    }
+  });
+
+  // ---- Tenant login (phone + PIN) ----
+  $('tenantForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var phone = $('tnPhone').value.trim();
+    var pin = $('tnPin').value.trim();
+    if (!phone || !pin) { err($('tenantErr'), 'Enter both your phone number and your access code.'); return; }
+    location.href = 'tenant.html?phone=' + encodeURIComponent(phone) + '&pin=' + encodeURIComponent(pin);
+  });
+})();
+</script>
+</body>
+</html>
