@@ -87,6 +87,8 @@ input, button, select, textarea {
 
 button { cursor: pointer; }
 
+[hidden] { display: none !important; }
+
 /* ------------------------------------------------------------------
    3. Aurora background
    ------------------------------------------------------------------ */
