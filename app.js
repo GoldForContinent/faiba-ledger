@@ -41,6 +41,7 @@ async function insertPayments(tenantId, payments) {
   if (!payments || !payments.length) return;
   const { error } = await supabaseClient.from('payments').insert(
     payments.map(p => ({
+      id: p.id,
       tenant_id: tenantId,
       date: p.date,
       amount: Number(p.amount),
@@ -52,12 +53,39 @@ async function insertPayments(tenantId, payments) {
   if (error) throw error;
 }
 async function syncPayments(tenantId, payments) {
-  const { data: existing } = await supabaseClient.from('payments').select('id').eq('tenant_id', tenantId);
-  const have = new Set((existing || []).map(p => p.id));
-  const del = (existing || []).filter(p => !payments.some(np => np.id === p.id));
-  if (del.length) await supabaseClient.from('payments').delete().in('id', del.map(p => p.id));
-  const fresh = payments.filter(p => !have.has(p.id));
-  if (fresh.length) await insertPayments(tenantId, fresh);
+  const { data: existing } = await supabaseClient.from('payments').select('*').eq('tenant_id', tenantId);
+  const rows = existing || [];
+  const current = new Map(rows.map(r => [r.id, r]));
+  const want = new Set((payments || []).map(p => p.id));
+  const del = rows.filter(r => !want.has(r.id));
+  if (del.length) {
+    const { error } = await supabaseClient.from('payments').delete().in('id', del.map(r => r.id));
+    if (error) throw error;
+  }
+  for (const p of payments || []) {
+    const row = {
+      date: p.date,
+      amount: Number(p.amount),
+      ref: (p.method === 'cash' ? null : (p.ref || null)),
+      method: p.method || 'mpesa',
+      note: p.note || null,
+    };
+    const cur = current.get(p.id);
+    if (cur) {
+      const changed = cur.date !== row.date
+        || Number(cur.amount) !== row.amount
+        || (cur.ref || null) !== row.ref
+        || (cur.method || 'mpesa') !== row.method
+        || (cur.note || null) !== row.note;
+      if (changed) {
+        const { error } = await supabaseClient.from('payments').update(row).eq('id', p.id);
+        if (error) throw error;
+      }
+    } else {
+      const { error } = await supabaseClient.from('payments').insert({ id: p.id, tenant_id: tenantId, ...row });
+      if (error) throw error;
+    }
+  }
 }
 
 const DB = {
@@ -149,6 +177,7 @@ function auditIcon(kind) {
 
 function auditOperatorName() {
   if (CURRENT_OPERATOR && CURRENT_OPERATOR.name) return CURRENT_OPERATOR.name;
+  if (CURRENT_OPERATOR && CURRENT_OPERATOR.email) return CURRENT_OPERATOR.email;
   if (CURRENT_OPERATOR && CURRENT_OPERATOR.role === 'owner') return 'Owner';
   return 'Admin';
 }
@@ -240,12 +269,12 @@ async function ensureOperator() {
   const { data: row } = await supabaseClient
     .from('operators').select('role, name').eq('id', user.id).maybeSingle();
   if (row) {
-    CURRENT_OPERATOR = { id: user.id, role: row.role, name: row.name || '' };
+    CURRENT_OPERATOR = { id: user.id, role: row.role, name: row.name || '', email: user.email || '' };
     return true;
   }
   const ins = await supabaseClient.from('operators').insert({ id: user.id, role: 'owner' });
   if (ins.error) return false; // owner exists — not an operator
-  CURRENT_OPERATOR = { id: user.id, role: 'owner', name: '' };
+  CURRENT_OPERATOR = { id: user.id, role: 'owner', name: '', email: user.email || '' };
   return true;
 }
 
@@ -577,6 +606,7 @@ async function renderAudit() {
           <span class="au-ico ${cls}">${auditIcon(r.kind)}</span>
           <div class="au-main">
             <div class="au-title">${escapeHtml(r.summary)}</div>
+            ${r.actor ? `<div class="au-actor">${ICONS.op} by <b>${escapeHtml(r.actor)}</b></div>` : ''}
             ${r.detail ? `<div class="au-detail">${escapeHtml(r.detail)}</div>` : ''}
           </div>
           <div class="au-time">${fmtAuditTs(r.ts)}</div>
@@ -706,9 +736,13 @@ function renderDetail(t) {
           ${p.method === 'cash' ? '<span class="py-ref">💵 cash</span>' : (p.ref ? `<span class="py-ref">M-Pesa · ${escapeHtml(p.ref)}</span>` : '')}
           ${p.note ? `<span>${escapeHtml(p.note)}</span>` : ''}
         </span>
-        <button class="py-del" data-del-pay="${p.id}" title="Delete payment" aria-label="Delete payment">${ICONS.x}</button>
+        <span class="py-btns">
+          <button class="py-edit" data-edit-pay="${p.id}" title="Edit payment" aria-label="Edit payment">${ICONS.pencil}</button>
+          <button class="py-del" data-del-pay="${p.id}" title="Delete payment" aria-label="Delete payment">${ICONS.x}</button>
+        </span>
       </li>`).join('')
     : `<li class="cx-more">No payments recorded yet.</li>`;
+  pyList.querySelectorAll('[data-edit-pay]').forEach(b => b.addEventListener('click', () => openEditPayment(t.id, b.dataset.editPay)));
   pyList.querySelectorAll('[data-del-pay]').forEach(b => b.addEventListener('click', () => deletePayment(t.id, b.dataset.delPay)));
 
   renderAccess(t);
@@ -919,11 +953,13 @@ async function handleAdd(e) {
 // Record payment
 // ---------------------------------------------------------------
 let payContextTenantId = null;
+let editPaymentId = null; // when set, the pay sheet edits this payment
 
 function openPaymentSheet(id, suggestedAmount) {
   const t = tenants.find(x => x.id === id);
   if (!t) return;
   payContextTenantId = id;
+  editPaymentId = null;
   const a = analyze(t);
   $('payContext').textContent = suggestedAmount != null
     ? `Recording the exact amount owed by ${t.name}.`
@@ -932,10 +968,38 @@ function openPaymentSheet(id, suggestedAmount) {
       : a.state === 'credit'
         ? `${t.name} is ${money(a.credit)} ahead — this tops up their credit.`
         : `${t.name} is settled — anything paid now goes to their credit (covers future cycles).`;
+  $('payTitle').textContent = 'Record payment';
+  $('payForm').querySelector('button[type="submit"]').textContent = 'Save payment';
   const form = $('payForm');
   form.reset();
   form.amount.value = suggestedAmount != null ? suggestedAmount : (a.owed > 0 ? a.owed : '');
   form.payDate.value = todayStr();
+  $('#payRefField').hidden = false;
+  openSheet('paySheet');
+  form.amount.focus();
+}
+
+// Reuse the pay sheet in edit mode — prefilled, updates the same row.
+function openEditPayment(tenantId, paymentId) {
+  const t = tenants.find(x => x.id === tenantId);
+  const p = (t.payments || []).find(x => x.id === paymentId);
+  if (!t || !p) return;
+  payContextTenantId = tenantId;
+  editPaymentId = paymentId;
+  $('payTitle').textContent = 'Edit payment';
+  $('payContext').textContent = `Fixing the ${money(p.amount)} payment on ${fmtDate(p.date, true)} for ${t.name}. The balance recalculates after saving.`;
+  $('payForm').querySelector('button[type="submit"]').textContent = 'Save changes';
+  const form = $('payForm');
+  form.reset();
+  form.amount.value = p.amount;
+  form.payDate.value = p.date;
+  const isCash = p.method === 'cash';
+  const radio = form.querySelector(`input[name="method"][value="${isCash ? 'cash' : 'mpesa'}"]`);
+  if (radio) radio.checked = true;
+  $('#payRefField').hidden = isCash;
+  if (isCash) form.ref.value = '';
+  else form.ref.value = p.ref || '';
+  form.note.value = p.note || '';
   openSheet('paySheet');
   form.amount.focus();
 }
@@ -949,19 +1013,45 @@ async function handlePay(e) {
   if (!t) return;
   const method = fd.get('method') === 'cash' ? 'cash' : 'mpesa';
   const ref = method === 'cash' ? '' : String(fd.get('ref') || '').trim();
+  const date = fd.get('payDate') || todayStr();
+  const note = String(fd.get('note') || '').trim();
+
+  if (editPaymentId) {
+    const p = (t.payments || []).find(x => x.id === editPaymentId);
+    editPaymentId = null;
+    if (!p) { toast('That payment is no longer there.'); return; }
+    const before = { amount: p.amount, date: p.date, method: p.method, ref: p.ref };
+    p.amount = amount;
+    p.date = date;
+    p.method = method;
+    p.ref = ref;
+    p.note = note;
+    await persistTenant(t);
+    await writeAudit({
+      tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'edit',
+      summary: `Updated payment for ${t.name}${t.unit ? ' · ' + t.unit : ''}`,
+      detail: `${money(before.amount)} on ${fmtDate(before.date, true)} (${before.method}) → ${money(amount)} on ${fmtDate(date, true)} (${method})${ref ? ' · ' + ref : ''}. Balance recalculated.`,
+    });
+    e.target.reset();
+    closeSheets();
+    renderAll();
+    toast('Payment updated and balance recalculated.');
+    return;
+  }
+
   t.payments.push({
     id: uid(),
-    date: fd.get('payDate') || todayStr(),
+    date,
     amount,
     method,
     ref,
-    note: String(fd.get('note') || '').trim(),
+    note,
   });
   await persistTenant(t);
   await writeAudit({
     tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'payment',
     summary: `${money(amount)} received from ${t.name}${t.unit ? ' · ' + t.unit : ''}`,
-    detail: (method === 'cash' ? 'Cash' : 'M-Pesa' + (ref ? ' · ' + ref : '')) + ' on ' + fmtDate(fd.get('payDate') || todayStr()),
+    detail: (method === 'cash' ? 'Cash' : 'M-Pesa' + (ref ? ' · ' + ref : '')) + ' on ' + fmtDate(date),
   });
   e.target.reset();
   closeSheets();
@@ -1614,6 +1704,8 @@ async function handleChangePassword(e) {
 const ICONS = {
   wa: `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>`,
   x: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+  pencil: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  op: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>`,
 };
 
 // ---------------------------------------------------------------

@@ -800,15 +800,22 @@ button { cursor: pointer; }
   font-size: 11px;
   color: var(--accent);
 }
-.py-del {
+.py-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.py-edit, .py-del {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px; height: 26px;
+  width: 30px; height: 30px;
   border-radius: 8px;
   color: var(--ink-3);
   transition: all .12s ease;
 }
+.py-edit:hover { background: rgba(124,180,255,.12); color: var(--accent); }
 .py-del:hover { background: rgba(255,107,107,.1); color: var(--danger); }
 
 /* ------------------------------------------------------------------
@@ -1031,6 +1038,17 @@ button { cursor: pointer; }
   text-align: right;
   white-space: nowrap;
 }
+.au-actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.au-actor b { color: var(--accent); font-weight: 600; }
+.au-actor svg { flex: none; opacity: .8; }
 
 /* ------------------------------------------------------------------
    19. Sheet system (slide-up panels)
@@ -1054,11 +1072,15 @@ button { cursor: pointer; }
 .sheet {
   position: fixed;
   bottom: 0;
-  left: 0; right: 0;
+  left: 50%;
   z-index: 70;
+  width: 100%;
+  max-width: var(--max-w);
   max-height: 92vh;
+  min-height: 0;
   overflow-y: auto;
-  padding: 0 16px 28px;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px calc(28px + env(safe-area-inset-bottom));
   background: rgba(10,15,26,.88);
   border-top-left-radius: var(--r3);
   border-top-right-radius: var(--r3);
@@ -1066,11 +1088,11 @@ button { cursor: pointer; }
   backdrop-filter: blur(24px) saturate(1.2);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
   box-shadow: 0 -8px 32px -8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
-  transform: translateY(100%);
+  transform: translateX(-50%) translateY(100%);
   transition: transform .28s cubic-bezier(.22,1,.36,1);
 }
 .sheet.is-open {
-  transform: translateY(0);
+  transform: translateX(-50%) translateY(0);
 }
 
 .sheet-handle {
@@ -1931,4 +1953,43 @@ button { cursor: pointer; }
   .hero-tiles { grid-template-columns: repeat(4, 1fr); }
   .field-row { grid-template-columns: 1fr 1fr 1fr; }
   .report-tiles { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ------------------------------------------------------------------
+   39. Mobile + overflow hardening
+   ------------------------------------------------------------------ */
+/* Let text columns and form fields shrink instead of forcing the
+   page wider than the viewport. */
+.trow-main, .trow-top, .cx-main, .py-meta, .rp-main, .au-main,
+.d-id, .t-id, .team-main, .field, .field-row, .crow-main { min-width: 0; }
+
+.field input, .field select, .compose input, .search-wrap input { width: 100%; min-width: 0; }
+
+/* Long strings (M-Pesa codes, notes, big sums) wrap rather than spill
+   over the screen edge. */
+.py-ref, .rp-meta, .rp-name span, .crow-note, .crow-sub, .trow-sub,
+.cx-sub, .au-detail, .state-cap, .collect-big, .amt-cap { overflow-wrap: anywhere; }
+.cx-label, .trow-name, .crow-name, .rp-name { overflow-wrap: break-word; }
+
+.sheet-actions, .detail-actions, .report-head { flex-wrap: wrap; row-gap: 8px; }
+.detail-actions .btn { flex: 1 1 auto; }
+
+/* Touch: bigger, more forgiving tap targets and no sticky hover. */
+.thread-actions .btn, .crow-actions .btn { flex: 1 1 auto; }
+@media (hover: none) {
+  .trow:hover, .crow:hover, .btn-primary:hover { transform: none; }
+}
+
+/* Narrow phones: trim the top bar so the brand + actions fit
+   comfortably inside the viewport. */
+@media (max-width: 389px) {
+  .date-chip { display: none; }
+  .brand-sub { display: none; }
+  #addTopBtn { padding: 8px 11px; font-size: 12px; }
+  .topbar-right { gap: 4px; }
+  .view-title { font-size: 19px; }
+}
+@media (max-width: 359px) {
+  #addTopBtn .btn-label { display: none; }
+  #addTopBtn { padding: 9px; }
 }
