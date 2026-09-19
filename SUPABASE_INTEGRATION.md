@@ -326,9 +326,10 @@ stays but `ensureOperator()` in `app.js` signs them out on next visit
 ## 5b. Audit log, cash payments & new packages (live in migration `…0005`)
 
 - **Packages.** Two monthly tiers were added: `monthly-700` (Sh 700) and
-  `monthly-1000` (Sh 1000). The `segments.package` check constraint now accepts
-  `daily`, `weekly-180`, `weekly`, `monthly-500`, `monthly-700`, `monthly-1000`,
-  `monthly`.
+  `monthly-1000` (Sh 1000). A `weekly-210` (Sh 210) tier also exists. The
+  `segments.package` check constraint now accepts
+  `daily`, `weekly-180`, `weekly-210`, `weekly`, `monthly-500`, `monthly-700`,
+  `monthly-1000`, `monthly`.
 - **Cash payments.** `payments.method` is `'mpesa'` (default) or `'cash'`. When
   you record a cash payment no transaction code is required — the ref is stored
   as `NULL`. The Record payment / Add tenant / Bring-back sheets each have an

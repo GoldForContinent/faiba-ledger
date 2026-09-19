@@ -36,6 +36,7 @@
 const PACKAGES = {
   daily:        { key: 'daily',        label: 'Daily',   price: 30,  days: 1  },
   'weekly-180': { key: 'weekly-180',   label: 'Weekly',  price: 180, days: 7  },
+  'weekly-210': { key: 'weekly-210',   label: 'Weekly',  price: 210, days: 7  },
   'weekly':     { key: 'weekly',       label: 'Weekly',  price: 200, days: 7  },
   'monthly-500':{ key: 'monthly-500',  label: 'Monthly', price: 500, days: 30 },
   'monthly-700':{ key: 'monthly-700',  label: 'Monthly', price: 700, days: 30 },

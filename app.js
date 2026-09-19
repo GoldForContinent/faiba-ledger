@@ -204,6 +204,7 @@ function auditIcon(kind) {
   if (kind === 'remove') return '🗑️';
   if (kind === 'away') return '🏖️';
   if (kind === 'back') return '🔁';
+  if (kind === 'package') return '🔄';
   if (kind === 'edit') return '✏️';
   if (kind === 'access') return '🔑';
   return '📝';
@@ -705,10 +706,12 @@ function renderDetail(t) {
     <button class="btn btn-icon-text" id="dWa">${ICONS.wa} WhatsApp</button>`
   : `
     <button class="btn btn-primary" id="dPay">Record payment</button>
+    <button class="btn btn-ghost" id="dChange">Change package</button>
     <button class="btn btn-ghost" id="dAway">Mark away</button>
     <button class="btn btn-icon-text" id="dMsg">💬 Messages${tUnread ? ` · ${tUnread}` : ''}</button>
     <button class="btn btn-icon-text" id="dWa">${ICONS.wa} WhatsApp</button>`;
   $('dPay').addEventListener('click', () => openPaymentSheet(t.id));
+  if (!away) $('dChange').addEventListener('click', () => openChangeSheet(t.id));
   $('dWa').addEventListener('click', () => sendWhatsApp(t.id));
   $('dMsg').addEventListener('click', () => openThreadSheet(t.id));
   if (away) $('dBack').addEventListener('click', () => openBackSheet(t.id));
@@ -1284,6 +1287,76 @@ async function handleBack(e) {
 }
 
 // ---------------------------------------------------------------
+// Change package — switch an active tenant without re-billing history
+// ---------------------------------------------------------------
+// The current cycle is left to finish on the old price (its full
+// cycles already billed keep their amount) and the new package starts
+// the tenant's next renewal day, in a fresh open segment.
+function nextCycleStart(t) {
+  const seg = activeSegment(t);
+  if (!seg) return null;
+  const pkg = pkgOf(seg.package);
+  const elapsed = Math.floor((dayMs(todayStr()) - dayMs(seg.start)) / DAY_MS);
+  const started = Math.floor(elapsed / pkg.days) + 1;
+  return addDays(seg.start, started * pkg.days);
+}
+
+function openChangeSheet(id) {
+  const t = tenants.find(x => x.id === id);
+  if (!t || isAway(t)) return;
+  payContextTenantId = id;
+  const form = $('changeForm');
+  form.reset();
+  const cur = pkgOf(activeSegment(t).package);
+  const radio = form.querySelector(`input[name="changePackage"][value="${cur.key}"]`);
+  if (radio) radio.checked = true;
+  refreshChangePreview();
+  openSheet('changeSheet');
+}
+
+function refreshChangePreview() {
+  const t = tenants.find(x => x.id === payContextTenantId);
+  if (!t) return;
+  const seg = activeSegment(t);
+  if (!seg) return;
+  const form = $('changeForm');
+  const cur = pkgOf(seg.package);
+  const nxt = PACKAGES[form.querySelector('input[name="changePackage"]:checked')?.value] || cur;
+  const start = nextCycleStart(t);
+  $('changePreview').innerHTML = nxt.key === cur.key
+    ? `<p class="preview-line">Already on <b>${cur.label} · ${money(cur.price)}</b> — pick a different package to switch.</p>`
+    : `<p class="preview-line">Current <b>${cur.label} · ${money(cur.price)}</b> runs until <b>${fmtDate(start, true)}</b> — today's cycle is not split or pro-rated.</p>
+       <p class="preview-line">From <b>${fmtDate(start, true)}</b> they move to <b>${nxt.label} · ${money(nxt.price)}</b>, first charge landing on that day.</p>
+       <p class="preview-line">Outstanding balances, credit and payment history carry over untouched.</p>`;
+}
+
+async function handleChange(e) {
+  e.preventDefault();
+  const t = tenants.find(x => x.id === payContextTenantId);
+  if (!t) return;
+  const seg = activeSegment(t);
+  if (!seg) return;
+  const fd = new FormData(e.target);
+  const cur = pkgOf(seg.package);
+  const nxt = PACKAGES[fd.get('changePackage')] || cur;
+  if (nxt.key === cur.key) { toast(`${t.name} is already on ${cur.label} · ${money(cur.price)}.`); return; }
+  const start = nextCycleStart(t);
+  const bound = fmtDate(start, true);
+  seg.end = start;
+  t.segments.push({ id: uid(), package: nxt.key, start, end: null });
+  await persistTenant(t);
+  await writeAudit({
+    tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'package',
+    summary: `Changed ${t.name}${t.unit ? ' · ' + t.unit : ''} to ${nxt.label} · ${money(nxt.price)}`,
+    detail: `Moved from ${cur.label} · ${money(cur.price)} to ${nxt.label} · ${money(nxt.price)} from ${bound}. Balance recalculated.`,
+  });
+  e.target.reset();
+  closeSheets();
+  renderAll();
+  toast(`${t.name} moves to ${nxt.label} · ${money(nxt.price)} from ${bound}.`);
+}
+
+// ---------------------------------------------------------------
 // Edit / delete tenant
 // ---------------------------------------------------------------
 function openEditSheet(id) {
@@ -1812,6 +1885,8 @@ function wireEvents() {
   $('backForm').backDate.addEventListener('change', refreshBackPreview);
   $('backForm').payAmount.addEventListener('input', refreshBackPreview);
   $('backForm').querySelectorAll('input[name="backPackage"]').forEach(r => r.addEventListener('change', refreshBackPreview));
+  $('changeForm').addEventListener('submit', handleChange);
+  $('changeForm').querySelectorAll('input[name="changePackage"]').forEach(r => r.addEventListener('change', refreshChangePreview));
 
   $('editBtn').addEventListener('click', () => { if (detailId) openEditSheet(detailId); });
   $('editForm').addEventListener('submit', handleEdit);
