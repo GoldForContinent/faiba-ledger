@@ -1013,7 +1013,7 @@ function openPaymentSheet(id, suggestedAmount) {
   form.reset();
   form.amount.value = suggestedAmount != null ? suggestedAmount : (a.owed > 0 ? a.owed : '');
   form.payDate.value = todayStr();
-  $('#payRefField').hidden = false;
+  $('payRefField').hidden = false;
   openSheet('paySheet');
   form.amount.focus();
 }
@@ -1035,7 +1035,7 @@ function openEditPayment(tenantId, paymentId) {
   const isCash = p.method === 'cash';
   const radio = form.querySelector(`input[name="method"][value="${isCash ? 'cash' : 'mpesa'}"]`);
   if (radio) radio.checked = true;
-  $('#payRefField').hidden = isCash;
+  $('payRefField').hidden = isCash;
   if (isCash) form.ref.value = '';
   else form.ref.value = p.ref || '';
   form.note.value = p.note || '';
