@@ -17,9 +17,17 @@
   RLS: the first person to sign in self-registers as owner; the owner can add
   and remove admins from Settings → Team; any operator manages the full
   ledger. `login.html` has an Owner/Tenant toggle.
-- ⏳ **Phase 2 (hosted tenant logins + hosted chat) — still local.**
-  `tenant.html` and the inbox/presence mock still read `localStorage` on the
-  device. See Phase 2 below for the exact hosted plan.
+- ✅ **Hosted tenant logins (live).** `tenant.html` now verifies phone + code
+  server-side via the `tenant_login()` RPC (migration `…0001`): codes are
+  hashed (`sha256(salt || ':' || pin)`, columns `access_pin_hash` +
+  `access_salt`), operators set/clear them through
+  `owner_set_pin()`/`owner_clear_pin()`, and a tenant on their own phone gets
+  back only their own ledger (no localStorage needed). The demo's same-device
+  fallback still exists.
+- ⏳ **Hosted chat — still local.** `tenant.html` and the manager's
+  inbox/presence mock still read `localStorage` (`faiba_messages_v2` /
+  `faiba_presence_v2`). Message threads only sync between pages opened on the
+  same device/browser. See Phase 2 below for the hosted plan.
 
 ## Files
 

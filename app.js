@@ -27,6 +27,37 @@ function writePin(id, pin) {
   savePins(p);
 }
 
+// Access codes are hashed server-side (owner_set_pin stores
+// sha256(salt || ':' || pin)); the plaintext never touches the DB.
+// The random salt is generated here so no helper is needed remotely.
+function randSalt() {
+  const a = new Uint8Array(8);
+  crypto.getRandomValues(a);
+  return Array.from(a).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function pushPin(id, pin) {
+  if (pin === null || pin === undefined) {
+    await supabaseClient.rpc('owner_clear_pin', { p_tenant_id: id });
+  } else {
+    await supabaseClient.rpc('owner_set_pin', { p_tenant_id: id, p_salt: randSalt(), p_pin: String(pin) });
+  }
+}
+// Codes created before the cloud wiring only live in this device's
+// localStorage. Sweep any that aren't hashed in the cloud yet so
+// existing links start working again without regenerating codes.
+async function syncLocalPinsToCloud() {
+  const pins = loadPins();
+  const ids = Object.keys(pins);
+  if (!ids.length) return;
+  const { data: rows, error } = await supabaseClient.from('tenants').select('id, access_salt').in('id', ids);
+  if (error || !rows) return;
+  const pushed = new Set(rows.filter(r => r.access_salt).map(r => r.id));
+  for (const id of ids) {
+    if (pushed.has(id)) continue;
+    try { await pushPin(id, pins[id]); } catch (e) { /* try the rest; next visit heals */ }
+  }
+}
+
 // ---------------------------------------------------------------
 // Data layer — Supabase (row-level security protects every row).
 // ---------------------------------------------------------------
@@ -321,6 +352,7 @@ async function init() {
   }
   tenants = await DB.getAll();
   syncToLocal();
+  setTimeout(() => { syncLocalPinsToCloud().catch(() => {}); }, 0);
   renderAll();
   touchOwner();
   inboxPulse();
@@ -790,7 +822,7 @@ function renderAccess(t) {
         <button class="btn btn-ghost btn-sm" id="daTest" type="button">Test their page</button>
         <button class="btn btn-danger-ghost btn-sm" id="daRevoke" type="button">Revoke</button>
       </div>
-      <p class="access-note dim">In this demo the code works when the tenant page is opened on this device. Hosting makes it reachable from their own phones (see SUPABASE_INTEGRATION.md).</p>`
+      <p class="access-note dim">The code is verified in the cloud, so it works when the tenant opens their page on any phone — no app install needed.</p>`
     : `
       <p class="access-note">Give this tenant a code so they can check their own balance, cycle and payment history instead of asking you. ${hasPhone ? '' : 'Add their phone number first — the code is sent by WhatsApp.'}</p>
       <div class="access-btns">
@@ -801,11 +833,13 @@ function renderAccess(t) {
   const on = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
   on('daCreate', async () => {
     t.accessPin = randPin(); writePin(t.id, t.accessPin); syncToLocal(); renderDetail(t);
+    try { await pushPin(t.id, t.accessPin); } catch (e) { toast('Code saved on this device but not synced to the cloud — check your connection.'); }
     await writeAudit({ tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'access', summary: `Created access code for ${t.name}${t.unit ? ' · ' + t.unit : ''}`, detail: 'A self-service login code was issued.' });
     toast(`Code ${t.accessPin} created for ${t.name}.`);
   });
   on('daRegen', async () => {
     t.accessPin = randPin(); writePin(t.id, t.accessPin); syncToLocal(); renderDetail(t);
+    try { await pushPin(t.id, t.accessPin); } catch (e) { toast('Code saved on this device but not synced to the cloud — check your connection.'); }
     await writeAudit({ tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'access', summary: `New access code for ${t.name}${t.unit ? ' · ' + t.unit : ''}`, detail: 'The old code no longer works.' });
     toast('New code issued — the old one no longer works.');
   });
@@ -821,6 +855,7 @@ function renderAccess(t) {
     writePin(t.id, null);
     syncToLocal();
     renderDetail(t);
+    try { await pushPin(t.id, null); } catch (e) { toast('Revoked on this device but the cloud copy may still work — check your connection.'); }
     await writeAudit({ tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'access', summary: `Revoked access code for ${t.name}${t.unit ? ' · ' + t.unit : ''}`, detail: 'Their self-service login no longer works.' });
     toast('Access code revoked.');
   });
@@ -1583,6 +1618,7 @@ async function handleUploadCloud() {
     syncToLocal();
     renderAll();
     closeSheets();
+    setTimeout(() => { syncLocalPinsToCloud().catch(() => {}); }, 0);
     toast(`${fresh.length} tenant${fresh.length === 1 ? '' : 's'} uploaded to the cloud.`);
   } catch (err) {
     toast('Upload failed: ' + (err && err.message ? err.message : String(err)));

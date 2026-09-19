@@ -8,9 +8,9 @@
 
    In the current local demo, the tenant page reads the same device's
    ledger, so the owner can open it here to test. When hosted on
-   Supabase, the same page talks to the backend instead, where access
-   codes are verified server-side and row-level security guarantees a
-   tenant sees only their own row (SUPABASE_INTEGRATION.md, Phase 2).
+   Supabase, the same page talks to the backend instead: the phone +
+   access code are verified server-side by the tenant_login() RPC and
+   only that tenant's own ledger is returned.
 =================================================================== */
 
 const $ = id => document.getElementById(id);
@@ -78,9 +78,35 @@ function findTenantByPhone(phone) {
   return loadTenantList().find(t => normalizePhone(t.phone) === want) || null;
 }
 
-function attemptLogin(phone, pin) {
+// The real hosted login: the phone + code are verified server-side by
+// the tenant_login() RPC, which returns that tenant's own ledger or
+// null. This is what lets a client on their own phone (empty
+// localStorage) check their balance. Returns { tried, tenant } so the
+// caller can fall back to the same-device demo when hosting is off.
+async function tenantLoginHosted(phone, pin) {
+  try {
+    const c = initSupabaseClient();
+    if (!c) return { tried: false, tenant: null };
+    const { data, error } = await c.rpc('tenant_login', { p_phone: phone, p_pin: pin });
+    if (error) return { tried: false, tenant: null };
+    return { tried: true, tenant: data || null };
+  } catch (e) {
+    return { tried: false, tenant: null };
+  }
+}
+
+async function attemptLogin(phone, pin) {
   const errEl = $('tErr');
   errEl.hidden = true;
+
+  const h = await tenantLoginHosted(String(phone || '').trim(), String(pin || '').trim());
+  if (h.tried) {
+    if (h.tenant) { current = h.tenant; renderAccount(h.tenant); showAccount(); return; }
+    tErr('That code does not match. Double-check it, or ask the owner to send a new one.');
+    return;
+  }
+
+  // Offline / demo fallback: the ledger saved on this device.
   const t = findTenantByPhone(phone);
   if (!t) { tErr('No account matches that phone number. Check the number your owner has for you.'); return; }
   if (!t.accessPin) { tErr('This account has no access code yet — ask your owner to create one (it takes one tap).'); return; }
@@ -349,13 +375,8 @@ function init() {
     if (t) { current = t; renderAccount(t); return; }
   }
   if (params.get('phone') && params.get('pin')) {
-    const t = findTenantByPhone(params.get('phone'));
-    if (t && String(t.accessPin) === String(params.get('pin')).trim()) {
-      current = t;
-      renderAccount(t);
-      return;
-    }
-    tErr('That link no longer works — ask your owner to send a fresh one.');
+    attemptLogin(params.get('phone'), params.get('pin'));
+    return;
   }
   showLogin();
 }
