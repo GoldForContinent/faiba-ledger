@@ -800,6 +800,10 @@ button { cursor: pointer; }
   font-size: 11px;
   color: var(--accent);
 }
+.py-by {
+  font-size: 11px;
+  color: var(--ink-3);
+}
 .py-btns {
   display: flex;
   align-items: center;

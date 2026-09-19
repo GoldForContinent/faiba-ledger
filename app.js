@@ -48,6 +48,7 @@ async function insertPayments(tenantId, payments) {
       ref: (p.method === 'cash' ? null : (p.ref || null)),
       method: p.method || 'mpesa',
       note: p.note || null,
+      recorded_by: p.recorded_by || auditOperatorName() || null,
     }))
   );
   if (error) throw error;
@@ -69,6 +70,7 @@ async function syncPayments(tenantId, payments) {
       ref: (p.method === 'cash' ? null : (p.ref || null)),
       method: p.method || 'mpesa',
       note: p.note || null,
+      recorded_by: p.recorded_by || auditOperatorName() || null,
     };
     const cur = current.get(p.id);
     if (cur) {
@@ -76,7 +78,8 @@ async function syncPayments(tenantId, payments) {
         || Number(cur.amount) !== row.amount
         || (cur.ref || null) !== row.ref
         || (cur.method || 'mpesa') !== row.method
-        || (cur.note || null) !== row.note;
+        || (cur.note || null) !== row.note
+        || (cur.recorded_by || null) !== row.recorded_by;
       if (changed) {
         const { error } = await supabaseClient.from('payments').update(row).eq('id', p.id);
         if (error) throw error;
@@ -110,7 +113,7 @@ const DB = {
         .map(s => ({ id: s.id, package: s.package, start: s.start_date, end: s.end_date })),
       payments: (pays || [])
         .filter(p => p.tenant_id === row.id)
-        .map(p => ({ id: p.id, date: p.date, amount: Number(p.amount), ref: p.ref || '', method: p.method || 'mpesa', note: p.note || '' })),
+        .map(p => ({ id: p.id, date: p.date, amount: Number(p.amount), ref: p.ref || '', method: p.method || 'mpesa', note: p.note || '', recorded_by: p.recorded_by || '' })),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -734,6 +737,7 @@ function renderDetail(t) {
         <span class="py-meta">
           <span>${fmtDate(p.date, true)}</span>
           ${p.method === 'cash' ? '<span class="py-ref">💵 cash</span>' : (p.ref ? `<span class="py-ref">M-Pesa · ${escapeHtml(p.ref)}</span>` : '')}
+          ${p.recorded_by ? `<span class="py-by">by ${escapeHtml(p.recorded_by)}</span>` : ''}
           ${p.note ? `<span>${escapeHtml(p.note)}</span>` : ''}
         </span>
         <span class="py-btns">
@@ -933,7 +937,7 @@ async function handleAdd(e) {
     updatedAt: nowIso(),
   };
   if (payAmount > 0) {
-    tenant.payments.push({ id: uid(), date: payDate, amount: payAmount, ref: payRef, method: payMethod, note: 'Joining payment' });
+    tenant.payments.push({ id: uid(), date: payDate, amount: payAmount, ref: payRef, method: payMethod, note: 'Joining payment', recorded_by: auditOperatorName() });
   }
   await DB.insert(tenant);
   tenants.push(tenant);
@@ -1046,6 +1050,7 @@ async function handlePay(e) {
     method,
     ref,
     note,
+    recorded_by: auditOperatorName(),
   });
   await persistTenant(t);
   await writeAudit({
@@ -1227,6 +1232,7 @@ async function handleBack(e) {
       id: uid(), date: fd.get('payDate') || todayStr(), amount: payAmount,
       method: payMethod,
       ref: payMethod === 'cash' ? '' : String(fd.get('payRef') || '').trim(), note: 'Returning payment',
+      recorded_by: auditOperatorName(),
     });
   }
   await persistTenant(t);
