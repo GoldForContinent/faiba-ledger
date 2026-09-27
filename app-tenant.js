@@ -78,21 +78,28 @@ function findTenantByPhone(phone) {
   return loadTenantList().find(t => normalizePhone(t.phone) === want) || null;
 }
 
+// Supabase retries a failing request a few times before admitting defeat, so
+// on a dead signal the tenant would just watch the button do nothing. A slow
+// "no" is fine here: the caller falls through to the copy on this device.
+function withDeadline(work, ms) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(work).catch(() => null),
+    new Promise(resolve => { timer = setTimeout(() => resolve(null), ms); }),
+  ]).then(v => { clearTimeout(timer); return v; });
+}
+
 // The real hosted login: the phone + code are verified server-side by
 // the tenant_login() RPC, which returns that tenant's own ledger or
 // null. This is what lets a client on their own phone (empty
 // localStorage) check their balance. Returns { tried, tenant } so the
 // caller can fall back to the same-device demo when hosting is off.
 async function tenantLoginHosted(phone, pin) {
-  try {
-    const c = initSupabaseClient();
-    if (!c) return { tried: false, tenant: null };
-    const { data, error } = await c.rpc('tenant_login', { p_phone: phone, p_pin: pin });
-    if (error) return { tried: false, tenant: null };
-    return { tried: true, tenant: data || null };
-  } catch (e) {
-    return { tried: false, tenant: null };
-  }
+  const c = initSupabaseClient();
+  if (!c) return { tried: false, tenant: null };
+  const res = await withDeadline(c.rpc('tenant_login', { p_phone: phone, p_pin: pin }), 8000);
+  if (!res || res.error) return { tried: false, tenant: null };
+  return { tried: true, tenant: res.data || null };
 }
 
 async function attemptLogin(phone, pin) {
@@ -108,7 +115,12 @@ async function attemptLogin(phone, pin) {
 
   // Offline / demo fallback: the ledger saved on this device.
   const t = findTenantByPhone(phone);
-  if (!t) { tErr('No account matches that phone number. Check the number your owner has for you.'); return; }
+  if (!t) {
+    tErr(navigator.onLine === false
+      ? 'No connection, and this device has no saved copy of the ledger to check against. Try again once you have signal.'
+      : 'No account matches that phone number. Check the number your owner has for you.');
+    return;
+  }
   if (!t.accessPin) { tErr('This account has no access code yet — ask your owner to create one (it takes one tap).'); return; }
   if (String(t.accessPin) !== String(pin).trim()) { tErr('That code does not match. Double-check it, or ask the owner to send a new one.'); return; }
   current = t;

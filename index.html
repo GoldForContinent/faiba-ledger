@@ -4,12 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#05070d">
+<meta name="description" content="Run your WiFi reselling business from one place: tenants, daily cycles, payments and messages.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Faiba Ledger">
 <title>Faiba Ledger — resale control room</title>
 <script>if (!localStorage.getItem('sb-zmzsahvhczzxqobiqjzj-auth-token')) location.replace('login.html');</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="pwa.css">
 </head>
 <body>
 
@@ -503,6 +512,12 @@
       <button type="submit" class="btn btn-primary">Save settings</button>
     </div>
   </form>
+  <div class="divider"><span>Install on this device</span></div>
+  <div class="field-note">Put Faiba Ledger on your phone or laptop home screen so it opens like a normal app — no browser bar, and it opens even when the signal drops.</div>
+  <div class="pwa-install-row" id="pwaInstallRow">
+    <button type="button" class="btn btn-primary" id="installAppBtn">Install the app</button>
+    <span class="pwa-install-tag" id="pwaInstallTag" hidden>Installed</span>
+  </div>
   <div class="divider"><span>Cloud data</span></div>
   <div class="field-note">If this device still has tenants that aren't in the online ledger, copy them up once — anything already online is skipped.</div>
   <button type="button" class="btn btn-ghost btn-block" id="uploadCloudBtn">Upload this device's tenants to the cloud</button>
@@ -554,5 +569,6 @@
 <script src="supabase-client.js"></script>
 <script src="ledger-core.js"></script>
 <script src="app.js"></script>
+<script src="pwa.js" defer></script>
 </body>
 </html>

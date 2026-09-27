@@ -122,6 +122,18 @@ async function syncPayments(tenantId, payments) {
   }
 }
 
+// Every write to the ledger ends up in one of the three DB methods below, so
+// this is the one place that can refuse a change while the signal is gone.
+// A balance that cannot be saved is worse than one that is late: nothing is
+// written offline, and the owner is told why in their own words.
+function requireCloud() {
+  if (navigator.onLine !== false) return;
+  const err = new Error('offline');
+  err.offline = true;
+  toast('You are offline — nothing was changed. Reconnect and try again.');
+  throw err;
+}
+
 const DB = {
   async getAll() {
     const { data: rows, error: tErr } = await supabaseClient.from('tenants').select('*').order('created_at');
@@ -151,6 +163,7 @@ const DB = {
   },
   async save(list) { return list; }, // interface compat — no longer used
   async insert(tenant) {
+    requireCloud();
     const { error: tErr } = await supabaseClient.from('tenants').insert({
       id: tenant.id, name: tenant.name, unit: tenant.unit, phone: tenant.phone || null,
       opened_on: tenant.openedOn, opening_arrears: tenant.openingArrears,
@@ -161,6 +174,7 @@ const DB = {
     return tenant;
   },
   async update(id, patch) {
+    requireCloud();
     const { segments, payments, ...fields } = patch;
     if (segments) {
       await supabaseClient.from('segments').delete().eq('tenant_id', id);
@@ -180,6 +194,7 @@ const DB = {
     return all.find(t => t.id === id);
   },
   async remove(id) {
+    requireCloud();
     const { error } = await supabaseClient.from('tenants').delete().eq('id', id);
     if (error) throw error;
     return true;
@@ -298,19 +313,30 @@ let CURRENT_OPERATOR = null;     // { id, role: 'owner'|'admin', name } — who 
 // The signed-in user must be an operator (owner or admin). The very first
 // person to sign in self-registers as owner; everyone after is added by
 // the owner. Returns false if the account isn't an operator.
+// The signed-in user must be an operator (owner or admin). The very first
+// person to sign in self-registers as owner; everyone after is added by the
+// owner.
+//
+// Three answers, not two: 'denied' means the account is not an operator and
+// must be turned away, but 'offline' means we simply could not ask. An
+// installed app gets opened with no signal all the time, and signing the
+// owner out with "you are not an operator" because the router was down would
+// be the one thing worse than not working.
 async function ensureOperator() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) return false;
-  const { data: row } = await supabaseClient
+  const { data: { user }, error: uErr } = await supabaseClient.auth.getUser();
+  if (uErr) return 'offline';
+  if (!user) return 'denied';
+  const { data: row, error: rErr } = await supabaseClient
     .from('operators').select('role, name').eq('id', user.id).maybeSingle();
+  if (rErr) return 'offline';
   if (row) {
     CURRENT_OPERATOR = { id: user.id, role: row.role, name: row.name || '', email: user.email || '' };
-    return true;
+    return 'operator';
   }
   const ins = await supabaseClient.from('operators').insert({ id: user.id, role: 'owner' });
-  if (ins.error) return false; // owner exists — not an operator
+  if (ins.error) return navigator.onLine === false ? 'offline' : 'denied';
   CURRENT_OPERATOR = { id: user.id, role: 'owner', name: '', email: user.email || '' };
-  return true;
+  return 'operator';
 }
 
 const $ = id => document.getElementById(id);
@@ -342,18 +368,51 @@ function setOwnerPhone(v) { localStorage.setItem(OWNER_KEY, String(v || '').trim
 // ---------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------
+// Is the copy on this device the same as the ledger in the cloud?
+let cloudFresh = true;
+
+// Supabase retries a failing request a few times before admitting defeat,
+// which on a weak signal means staring at a blank page for half a minute.
+// Anything we cannot answer quickly is treated as "no answer", never as a
+// no - a wrong "no" signs the owner out of their own ledger.
+function withDeadline(work, ms) {
+  let timer;
+  const guarded = Promise.resolve(work).catch(() => null);
+  return Promise.race([
+    guarded,
+    new Promise(resolve => { timer = setTimeout(() => resolve(null), ms); }),
+  ]).then(v => { clearTimeout(timer); return v; });
+}
+
 async function init() {
   const { data: sess } = await supabaseClient.auth.getSession();
   if (!sess || !sess.session) { goLogin(); return; }
-  const isOp = await ensureOperator();
-  if (!isOp) {
+
+  // The sign-in token lives on the device, so it still counts with no signal.
+  // The operator check does not - if it cannot be answered, carry on with
+  // the copy saved here rather than turning the owner away.
+  const reachable = navigator.onLine !== false;
+  const standing = reachable ? (await withDeadline(ensureOperator(), 8000)) || 'offline' : 'offline';
+  if (standing === 'denied') {
     try { await supabaseClient.auth.signOut(); } catch (e) { /* leave anyway */ }
     location.replace('login.html?denied=1');
     return;
   }
-  tenants = await DB.getAll();
-  syncToLocal();
-  setTimeout(() => { syncLocalPinsToCloud().catch(() => {}); }, 0);
+
+  const fresh = standing === 'offline' ? null : await withDeadline(DB.getAll(), 10000);
+  if (fresh) {
+    tenants = fresh;
+    syncToLocal();
+    cloudFresh = true;
+    setTimeout(() => { syncLocalPinsToCloud().catch(() => {}); }, 0);
+  } else {
+    // No connection, or the ledger could not be read in time. The last copy
+    // on this device stands in; pwa.js is showing the offline strip and
+    // watchCloud() puts the real numbers back as soon as it can.
+    tenants = loadTenantList();
+    cloudFresh = false;
+  }
+
   renderAll();
   touchOwner();
   inboxPulse();
@@ -365,6 +424,55 @@ async function init() {
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) touchOwner(); });
   wireEvents();
+  watchCloud();
+  handleLaunchAction();
+}
+
+// ---------------------------------------------------------------
+// Coming back online
+// ---------------------------------------------------------------
+// navigator.onLine only knows about the network adapter, not about whether
+// anything answers on the other end, so a reconnect is confirmed by reading
+// the ledger again rather than trusted to the event. One pull at a time:
+// a slow attempt must not stack up behind the next tick.
+let pulling = false;
+async function pullFromCloud() {
+  if (pulling) return false;
+  pulling = true;
+  try {
+    const fresh = await withDeadline(DB.getAll(), 10000);
+    if (!fresh) { cloudFresh = false; return false; }
+    tenants = fresh;
+    syncToLocal();
+    cloudFresh = true;
+    renderAll();
+    return true;
+  } finally {
+    pulling = false;
+  }
+}
+
+function watchCloud() {
+  const catchUp = async () => {
+    if (cloudFresh) return;
+    if (await pullFromCloud()) toast('Back online — the ledger is up to date.');
+  };
+  window.addEventListener('online', catchUp);
+  setInterval(catchUp, 20000);
+}
+
+// The manifest's home-screen shortcuts (Add tenant / Collect) open the
+// app with ?action=... - jump straight there, then tidy the address bar
+// so a refresh does not repeat it.
+function handleLaunchAction() {
+  const action = new URLSearchParams(location.search).get('action');
+  if (!action) return;
+  if (history.replaceState) history.replaceState(null, '', location.pathname);
+  if (action === 'add') { openAddSheet(); return; }
+  if (action === 'collect') {
+    const tab = document.querySelector('.nav-tab[data-tab="collect"]');
+    if (tab) tab.click();
+  }
 }
 
 // ---------------------------------------------------------------
@@ -1655,7 +1763,20 @@ function continueOnWhatsApp(t) {
 // ---------------------------------------------------------------
 function openSettingsSheet() {
   $('settingsForm').ownerPhone.value = getOwnerPhone();
+  syncInstallRow();
   openSheet('settingsSheet');
+}
+
+// The install row in Settings, kept in step with pwa.js: a plain
+// install button normally, an "Installed" tag once the app is running
+// from the home screen.
+function syncInstallRow() {
+  const btn = $('installAppBtn');
+  if (!btn || !window.FaibaPWA) return;
+  const installed = FaibaPWA.isStandalone();
+  $('pwaInstallTag').hidden = !installed;
+  btn.hidden = installed;
+  if (!installed) btn.textContent = FaibaPWA.isIOS() ? 'Show me how' : 'Install the app';
 }
 function handleSettings(e) {
   e.preventDefault();
@@ -1906,6 +2027,11 @@ function wireEvents() {
   });
 
   $('uploadCloudBtn').addEventListener('click', handleUploadCloud);
+
+  $('installAppBtn').addEventListener('click', () => {
+    if (window.FaibaPWA) FaibaPWA.install();
+  });
+  window.addEventListener('appinstalled', syncInstallRow);
 
   $('notifBtn').addEventListener('click', () => {
     if (typeof Notification === 'undefined' || !Notification.requestPermission) { toast('Pop-ups are not supported in this browser.'); return; }

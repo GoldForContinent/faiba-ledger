@@ -4,11 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#05070d">
+<meta name="description" content="Sign in to Faiba Ledger — tenants, cycles, payments and messages for your WiFi reselling business.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Faiba Ledger">
 <title>Unlock — Faiba Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="pwa.css">
 </head>
 <body class="auth-page">
 
@@ -128,6 +137,13 @@
   // Already signed in as owner on this device? Go straight in.
   if (hasSupabaseSession()) location.replace('index.html');
 
+  // A dropped signal reads as "Failed to fetch" to the browser, not as a
+  // wrong password - say which one it was, or the owner will think their
+  // password broke the moment the network does.
+  function isOffline(msg) {
+    return navigator.onLine === false || /failed to fetch|networkerror|network request|load failed|offline/i.test(String(msg || ''));
+  }
+
   // ---- Owner sign-in ----
   $('loginForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -142,7 +158,9 @@
       location.replace('index.html');
     } catch (e2) {
       var msg = String((e2 && e2.message) || e2);
-      if (/invalid login credentials/i.test(msg)) {
+      if (isOffline(msg)) {
+        err($('authErr'), 'No connection right now, so we cannot check that password. Signing in needs the internet - try again once you have signal.');
+      } else if (/invalid login credentials/i.test(msg)) {
         err($('authErr'), 'No account matches that email and password. Check for typos and try again.');
       } else if (/email not confirmed/i.test(msg)) {
         err($('authErr'), 'Your email hasn\'t been activated yet — check your inbox for the activation link and tap it, then sign in again. No link? Tap "Forgot password?" to get a new one.');
@@ -162,7 +180,12 @@
       if (res.error) throw res.error;
       note('Recovery email sent to ' + email + ' — open the link and choose a new password.');
     } catch (e3) {
-      err($('authErr'), 'Could not send the recovery email: ' + String((e3 && e3.message) || e3));
+      var m3 = String((e3 && e3.message) || e3);
+      if (isOffline(m3)) {
+        err($('authErr'), 'No connection right now, so the recovery email cannot be sent. Try again once you have signal.');
+      } else {
+        err($('authErr'), 'Could not send the recovery email: ' + m3);
+      }
     }
   });
 
@@ -176,5 +199,6 @@
   });
 })();
 </script>
+<script src="pwa.js" defer></script>
 </body>
 </html>

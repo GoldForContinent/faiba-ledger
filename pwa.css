@@ -1,0 +1,309 @@
+/* ===================================================================
+   FAIBA LEDGER — pwa.css
+   -------------------------------------------------------------------
+   Styles for the pieces pwa.js injects: the install banner, the
+   Add to Home Screen help card, and its own toast. Loaded after
+   style.css by index.html, login.html and tenant.html.
+=================================================================== */
+
+/* ------------------------------------------------------------------
+   1. Install banner
+   ------------------------------------------------------------------ */
+.pwa-bar {
+  position: fixed;
+  z-index: 95;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: var(--max-w);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(10,15,26,.92);
+  border: 1px solid var(--glass-2);
+  border-bottom: none;
+  border-radius: var(--r2) var(--r2) 0 0;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 -12px 32px -10px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+  opacity: 0;
+  transform: translateY(110%);
+  transition: opacity .28s ease, transform .28s cubic-bezier(.22,1,.36,1);
+}
+.pwa-bar.is-in { opacity: 1; transform: translateY(0); }
+
+/* On the pages with the tab bar, sit just above it. */
+.pwa-bar-above-nav { bottom: calc(62px + env(safe-area-inset-bottom)); }
+
+.pwa-bar-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px -2px rgba(124,180,255,.35);
+}
+
+.pwa-bar-txt {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+}
+.pwa-bar-txt strong {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+.pwa-bar-txt span {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.pwa-bar-go { flex: 0 0 auto; }
+
+.pwa-bar-x {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--ink-3);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease;
+}
+.pwa-bar-x:hover { color: var(--ink-1); background: rgba(255,255,255,.06); }
+
+/* ------------------------------------------------------------------
+   2. Add to Home Screen help card
+   ------------------------------------------------------------------ */
+.pwa-help {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.pwa-help.is-in { opacity: 1; }
+
+.pwa-help-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.pwa-help-card {
+  position: relative;
+  width: 100%;
+  max-width: var(--max-w);
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 4px 20px calc(20px + env(safe-area-inset-bottom));
+  border-radius: var(--r2) var(--r2) 0 0;
+  background: rgba(10,15,26,.96);
+  border: 1px solid var(--glass-2);
+  border-bottom: none;
+  box-shadow: 0 -20px 48px -12px rgba(0,0,0,.6);
+  transform: translateY(14px);
+  transition: transform .25s cubic-bezier(.22,1,.36,1);
+}
+.pwa-help.is-in .pwa-help-card { transform: translateY(0); }
+
+.pwa-help-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-1);
+  margin-bottom: 6px;
+}
+.pwa-help-sub {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.pwa-help-steps {
+  list-style: none;
+  counter-reset: pwa-step;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.pwa-help-steps li {
+  counter-increment: pwa-step;
+  position: relative;
+  padding: 10px 12px 10px 40px;
+  border-radius: var(--r);
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--glass-1);
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.pwa-help-steps li::before {
+  content: counter(pwa-step);
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  color: var(--ink-0);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+}
+.pwa-help-steps b { color: var(--ink-1); font-weight: 600; }
+
+.pwa-help-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pwa-help-actions .btn { flex: 1 1 auto; }
+
+/* ------------------------------------------------------------------
+   3. Offline strip
+   ------------------------------------------------------------------ */
+:root { --pwa-net-h: calc(30px + env(safe-area-inset-top)); }
+
+.pwa-net {
+  position: fixed;
+  z-index: 96;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  height: var(--pwa-net-h);
+  padding: env(safe-area-inset-top) 14px 7px;
+  background: rgba(120, 74, 12, .92);
+  border-bottom: 1px solid rgba(255, 196, 92, .28);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  color: #ffe2ab;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+}
+.pwa-net[hidden] { display: none; }
+
+/* The topbar is sticky at the top - slide it down so the strip never sits
+   on top of the balance figures. */
+html.is-offline .topbar { top: var(--pwa-net-h); }
+
+.pwa-net-dot {
+  flex: 0 0 auto;
+  margin-bottom: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffc45c;
+  box-shadow: 0 0 0 3px rgba(255, 196, 92, .18);
+  animation: pwa-pulse 1.9s ease-in-out infinite;
+}
+@keyframes pwa-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+.pwa-net-txt { min-width: 0; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------
+   4. Own toast - login.html and tenant.html have no .toast
+   ------------------------------------------------------------------ */
+.pwa-say {
+  position: fixed;
+  z-index: 130;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 18px;
+  border-radius: var(--r);
+  background: rgba(10,15,26,.9);
+  border: 1px solid var(--glass-2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 8px 24px -6px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+  color: var(--ink-1);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.pwa-say.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ------------------------------------------------------------------
+   5. Install row in the Settings sheet
+   ------------------------------------------------------------------ */
+.pwa-install-row { display: flex; align-items: center; gap: 8px; }
+.pwa-install-row .btn { flex: 1 1 auto; }
+.pwa-install-row .pwa-install-tag {
+  font-size: 11.5px;
+  color: var(--ok);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------
+   6. Narrow phones + reduced motion
+   ------------------------------------------------------------------ */
+@media (max-width: 389px) {
+  .pwa-bar { padding: 9px 10px calc(9px + env(safe-area-inset-bottom)); gap: 8px; }
+  .pwa-bar-icon { width: 34px; height: 34px; border-radius: 9px; }
+  .pwa-bar-txt strong { font-size: 12.5px; }
+  .pwa-bar-txt span { font-size: 11px; }
+  .pwa-bar-go { padding: 7px 10px; font-size: 12px; }
+  .pwa-net { font-size: 11.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-bar, .pwa-help, .pwa-help-card, .pwa-say { transition: opacity .01s ease; transform: none; }
+  .pwa-bar { transform: none; }
+  .pwa-bar.is-in { transform: none; }
+  .pwa-net-dot { animation: none; }
+}
+
+/* ------------------------------------------------------------------
+   7. The notch
+   ------------------------------------------------------------------ */
+/* Installed on an iPhone the status bar is drawn ON TOP of the page
+   (black-translucent + viewport-fit=cover), so the sticky topbar would sit
+   under the clock and the notch. env() is 0 in a normal browser tab, so
+   the max() keeps the existing 16px there and only grows when the page is
+   really running full screen. */
+.topbar {
+  padding-top: max(16px, calc(env(safe-area-inset-top) + 4px));
+}
+
+/* The app is a standalone window once installed - never let the page
+   itself bounce or bounce-scroll behind the fixed bar. */
+@media (display-mode: standalone) {
+  .pwa-bar { display: none; }
+}
