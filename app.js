@@ -1174,7 +1174,21 @@ async function handleAdd(e) {
   const name = String(fd.get('name') || '').trim();
   if (!name) return;
   const started = fd.get('started') || todayStr();
-  const startMs = dayMs(started) > dayMs(todayStr()) ? todayStr() : started;
+  let startMs = dayMs(started) > dayMs(todayStr()) ? todayStr() : started;
+  // Restart guard — a back-dated start bills EVERY cycle since that day as
+  // unpaid, on top of any "owed before start". When a tenant was just removed
+  // and is being re-added to start fresh, that silently rebuilds the old debt.
+  // Ask once before committing to a back-dated start.
+  if (dayMs(started) < dayMs(todayStr())) {
+    const days = Math.max(1, pkg ? (pkg.days || 1) : 1);
+    const cycles = 1 + Math.floor((dayMs(todayStr()) - dayMs(started)) / DAY_MS / days);
+    const fromToday = await confirmDialog({
+      title: 'Start from today instead?',
+      body: `You picked <b>${escapeHtml(fmtDate(started))}</b> as the start. That bills every ${pkg ? escapeHtml(pkg.label.toLowerCase()) + ' cycle' : 'cycle'} since then — about <b>${cycles} cycle${cycles === 1 ? '' : 's'}</b> — as unpaid, on top of what you entered under “Owed before start”. If you're starting fresh, keep today's date and carry their old amount under “Owed before start”.`,
+      okLabel: 'Start from today',
+    });
+    if (fromToday) startMs = todayStr();
+  }
   const arrears = Math.max(0, Math.round(Number(fd.get('arrears')) || 0));
   const payAmount = Math.max(0, Math.round(Number(fd.get('payAmount')) || 0));
   const payMethod = fd.get('payMethod') === 'cash' ? 'cash' : 'mpesa';
