@@ -33,21 +33,75 @@
 // ---------------------------------------------------------------
 // Packages
 // ---------------------------------------------------------------
-const PACKAGES = {
-  daily:        { key: 'daily',        label: 'Daily',   price: 30,  days: 1  },
-  'weekly-180': { key: 'weekly-180',   label: 'Weekly',  price: 180, days: 7  },
-  'weekly-210': { key: 'weekly-210',   label: 'Weekly',  price: 210, days: 7  },
-  'weekly':     { key: 'weekly',       label: 'Weekly',  price: 200, days: 7  },
-  'monthly-500':{ key: 'monthly-500',  label: 'Monthly', price: 500, days: 30 },
-  'monthly-700':{ key: 'monthly-700',  label: 'Monthly', price: 700, days: 30 },
-  'monthly-1000':{ key: 'monthly-1000', label: 'Monthly', price: 1000, days: 30 },
-  'monthly':    { key: 'monthly',      label: 'Monthly', price: 800, days: 30 },
+// Seeded defaults — used until the cloud catalogue arrives, and as the
+// fallback if it can never be read (offline). The live list is loaded
+// into PACKAGES by setPackages(); see app.js.
+const DEFAULT_PACKAGES = {
+  daily:          { key: 'daily',         label: 'Daily',   price: 30,   days: 1  },
+  'weekly-180':   { key: 'weekly-180',    label: 'Weekly',  price: 180,  days: 7  },
+  'weekly-210':   { key: 'weekly-210',    label: 'Weekly',  price: 210,  days: 7  },
+  'weekly':       { key: 'weekly',        label: 'Weekly',  price: 200,  days: 7  },
+  'monthly-500':  { key: 'monthly-500',   label: 'Monthly', price: 500,  days: 30 },
+  'monthly-700':  { key: 'monthly-700',   label: 'Monthly', price: 700,  days: 30 },
+  'monthly-1000': { key: 'monthly-1000',  label: 'Monthly', price: 1000, days: 30 },
+  'monthly':      { key: 'monthly',       label: 'Monthly', price: 800,  days: 30 },
 };
 
-const PACKAGE_ORDER = Object.keys(PACKAGES);
+// Every package by key — active AND switched off, so a tenant still on a
+// switched-off package always prices correctly.
+const PACKAGES = Object.assign({}, DEFAULT_PACKAGES);
+
+// Pickers and the Report walk this list: active packages, display order.
+const PACKAGE_ORDER = Object.keys(DEFAULT_PACKAGES);
+
+// Install the cloud catalogue. Rows: { key, label, price, days, active,
+// sortOrder }. Keeps every package for pricing; exposes only the active
+// ones for selection.
+function setPackages(list) {
+  if (!Array.isArray(list) || !list.length) return;
+  for (const k of Object.keys(PACKAGES)) delete PACKAGES[k];
+  PACKAGE_ORDER.length = 0;
+  for (const p of list) {
+    const key = String((p && p.key) || '').trim();
+    if (!key) continue;
+    PACKAGES[key] = {
+      key,
+      label: String(p.label || key),
+      price: Number(p.price) || 0,
+      days: Math.max(1, Math.round(Number(p.days) || 1)),
+      active: p.active !== false,
+    };
+    if (p.active !== false) PACKAGE_ORDER.push(key);
+  }
+  if (!Object.keys(PACKAGES).length) Object.assign(PACKAGES, DEFAULT_PACKAGES);
+  if (!PACKAGE_ORDER.length) {
+    for (const k of Object.keys(PACKAGES)) if (PACKAGES[k].active !== false) PACKAGE_ORDER.push(k);
+  }
+}
+
+// Ordered keys for reporting: active packages first, then any switched
+// off package still referenced by history.
+function packageKeysOrdered() {
+  const keys = PACKAGE_ORDER.slice();
+  for (const k of Object.keys(PACKAGES)) if (keys.indexOf(k) === -1) keys.push(k);
+  return keys;
+}
 
 function pkgOf(key) {
-  return PACKAGES[key] || PACKAGES['weekly'];
+  return PACKAGES[key]
+    || PACKAGES[PACKAGE_ORDER[0]]
+    || DEFAULT_PACKAGES['weekly']
+    || { key: key || 'custom', label: key || 'Custom', price: 0, days: 30 };
+}
+
+// The price + cycle-length actually sold on a segment: the frozen
+// snapshot when present, otherwise today's catalogue (older rows).
+function segPriceDays(seg, pkg) {
+  const has = v => v !== null && v !== undefined && v !== '';
+  return {
+    price: has(seg.price) ? Number(seg.price) : pkg.price,
+    days: has(seg.days) ? Math.max(1, Math.round(Number(seg.days))) : pkg.days,
+  };
 }
 
 // ---------------------------------------------------------------
@@ -196,8 +250,7 @@ function buildCharges(t, refMs) {
     const E = seg.end ? dayMs(seg.end) : refMs;
     if (E < S) return;
     const elapsed = Math.floor((E - S) / DAY_MS);
-    const D = pkg.days;
-    const C = pkg.price;
+    const { price: C, days: D } = segPriceDays(seg, pkg);
     const segTag = t.segments.length > 1 ? ` (tenure ${si + 1})` : '';
 
     if (!seg.end) {
@@ -285,21 +338,22 @@ function analyze(t, refStr) {
   const seg = activeSegment(t);
   if (seg) {
     const pkg = pkgOf(seg.package);
+    const { price: dprice, days: ddays } = segPriceDays(seg, pkg);
     const S = dayMs(seg.start);
     const elapsed = Math.floor((ref - S) / DAY_MS);
-    const started = Math.floor(elapsed / pkg.days) + 1;
-    const curStart = S + (started - 1) * pkg.days * DAY_MS;
-    const nextStart = S + started * pkg.days * DAY_MS;
-    const progress = Math.min(1, Math.max(0, (ref - curStart) / (pkg.days * DAY_MS)));
+    const started = Math.floor(elapsed / ddays) + 1;
+    const curStart = S + (started - 1) * ddays * DAY_MS;
+    const nextStart = S + started * ddays * DAY_MS;
+    const progress = Math.min(1, Math.max(0, (ref - curStart) / (ddays * DAY_MS)));
     next = {
-      amount: pkg.price,
+      amount: dprice,
       start: curStart,
       boundary: nextStart,
       dateLabel: fmtDate(nextStart),
       daysLeft: Math.max(0, Math.ceil((nextStart - ref) / DAY_MS)),
       progress,
       cycleNo: started,
-      pkg,
+      pkg: Object.assign({}, pkg, { price: dprice, days: ddays }),
     };
   }
 

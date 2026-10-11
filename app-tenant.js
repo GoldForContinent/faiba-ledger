@@ -102,13 +102,30 @@ async function tenantLoginHosted(phone, pin) {
   return { tried: true, tenant: res.data || null };
 }
 
+// The catalogue is data now. Load it for friendly package names/prices;
+// the tenant's own segment carries its frozen price, so balances are
+// correct even if this read fails.
+async function loadPackages() {
+  const c = initSupabaseClient();
+  if (!c) return;
+  try {
+    const res = await withDeadline(c.from('packages').select('*').order('sort_order'), 6000);
+    if (res && !res.error && res.data && res.data.length) {
+      setPackages(res.data.map(r => ({
+        key: r.key, label: r.label, price: Number(r.price),
+        days: Number(r.days), active: r.active !== false,
+      })));
+    }
+  } catch (e) { /* keep the seeded defaults */ }
+}
+
 async function attemptLogin(phone, pin) {
   const errEl = $('tErr');
   errEl.hidden = true;
 
   const h = await tenantLoginHosted(String(phone || '').trim(), String(pin || '').trim());
   if (h.tried) {
-    if (h.tenant) { current = h.tenant; renderAccount(h.tenant); showAccount(); return; }
+    if (h.tenant) { await loadPackages(); current = h.tenant; renderAccount(h.tenant); showAccount(); return; }
     tErr('That code does not match. Double-check it, or ask the owner to send a new one.');
     return;
   }
@@ -355,6 +372,7 @@ function refreshOwnerStatus() {
 // Init
 // ---------------------------------------------------------------
 function init() {
+  loadPackages();
   $('tLoginForm').addEventListener('submit', e => {
     e.preventDefault();
     attemptLogin($('tPhone').value, $('tPin').value);

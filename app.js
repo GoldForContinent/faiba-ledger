@@ -64,7 +64,16 @@ async function syncLocalPinsToCloud() {
 async function insertSegments(tenantId, segments) {
   if (!segments || !segments.length) return;
   const { error } = await supabaseClient.from('segments').insert(
-    segments.map(s => ({ tenant_id: tenantId, package: s.package, start_date: s.start, end_date: s.end || null }))
+    segments.map(s => ({
+      tenant_id: tenantId,
+      package: s.package,
+      start_date: s.start,
+      end_date: s.end || null,
+      // Frozen snapshot of what was sold on this tenure. null means the
+      // row predates snapshots and the catalogue price applies.
+      price: s.price === undefined ? null : s.price,
+      days: s.days === undefined ? null : s.days,
+    }))
   );
   if (error) throw error;
 }
@@ -153,7 +162,11 @@ const DB = {
       accessPin: pins[row.id] || null,
       segments: (segs || [])
         .filter(s => s.tenant_id === row.id)
-        .map(s => ({ id: s.id, package: s.package, start: s.start_date, end: s.end_date })),
+        .map(s => ({
+          id: s.id, package: s.package, start: s.start_date, end: s.end_date,
+          price: s.price === null ? null : Number(s.price),
+          days: s.days === null ? null : Number(s.days),
+        })),
       payments: (pays || [])
         .filter(p => p.tenant_id === row.id)
         .map(p => ({ id: p.id, date: p.date, amount: Number(p.amount), ref: p.ref || '', method: p.method || 'mpesa', note: p.note || '', recorded_by: p.recorded_by || '' })),
@@ -195,9 +208,56 @@ const DB = {
   },
   async remove(id) {
     requireCloud();
-    const { error } = await supabaseClient.from('tenants').delete().eq('id', id);
+    // .select() after delete returns the rows actually removed. A blocked
+    // delete (RLS, or already gone) returns none — surface that instead of
+    // pretending success and letting the row reappear on the next refresh.
+    const { data, error } = await supabaseClient
+      .from('tenants').delete().eq('id', id).select('id');
     if (error) throw error;
+    if (!data || !data.length) {
+      const err = new Error('That tenant no longer exists in the cloud.');
+      err.notFound = true;
+      throw err;
+    }
     return true;
+  },
+
+  // ---- packages: the catalogue Settings edits -----------------------
+  async getPackages() {
+    const { data, error } = await supabaseClient
+      .from('packages').select('*').order('sort_order');
+    if (error) throw error;
+    return (data || []).map(r => ({
+      key: r.key, label: r.label, price: Number(r.price), days: Number(r.days),
+      active: r.active !== false, sortOrder: r.sort_order,
+    }));
+  },
+  async addPackage(p) {
+    requireCloud();
+    const { error } = await supabaseClient.from('packages').insert({
+      key: p.key, label: p.label, price: p.price, days: p.days,
+      active: true, sort_order: p.sortOrder || 100,
+    });
+    if (error) throw error;
+  },
+  async updatePackage(key, patch) {
+    requireCloud();
+    const row = {};
+    if ('label' in patch) row.label = patch.label;
+    if ('price' in patch) row.price = patch.price;
+    if ('days' in patch) row.days = patch.days;
+    if ('active' in patch) row.active = patch.active;
+    if ('sortOrder' in patch) row.sort_order = patch.sortOrder;
+    if (!Object.keys(row).length) return;
+    const { error } = await supabaseClient.from('packages').update(row).eq('key', key);
+    if (error) throw error;
+  },
+  async deletePackage(key) {
+    requireCloud();
+    const { data, error } = await supabaseClient
+      .from('packages').delete().eq('key', key).select('key');
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('That package was not found.');
   },
 };
 
@@ -359,6 +419,55 @@ async function saveAll() {
   syncToLocal();
 }
 
+// Deleting a tenant must leave nothing behind on THIS device either: the
+// access code, the chat thread and the presence flag are local sidecars
+// that the cloud cascade cannot reach.
+function purgeTenantLocals(id) {
+  try {
+    writePin(id, null);
+    saveMessages(loadMessages().filter(m => m.tenantId !== id));
+    const p = loadPresence();
+    if (p && p.tenants) delete p.tenants[id];
+    savePresence(p && p.tenants ? p : { tenants: {} });
+  } catch (e) { /* best effort — the cloud row is already gone */ }
+}
+
+// ---------------------------------------------------------------
+// Packages — the catalogue Settings edits
+// ---------------------------------------------------------------
+// The package list is a table now, not code. Load it at startup and after
+// every change; PACKAGES/PACKAGE_ORDER (ledger-core.js) then price every
+// tenant. The manager keeps ALL packages (so a switched-off one still
+// prices the tenants on it); the pickers show the active ones only.
+async function refreshPackages() {
+  try {
+    const list = await DB.getPackages();
+    if (list.length) setPackages(list);
+  } catch (e) { /* offline — the seeded defaults stand in */ }
+  renderPackagePickers();
+}
+
+// Fill the package radio groups from the live catalogue, preserving the
+// current selection where there is one. Only the options are replaced —
+// the <legend> stays put.
+function renderPackagePickers() {
+  document.querySelectorAll('.pkg-picker').forEach(box => {
+    const name = box.dataset.name;
+    if (!name) return;
+    const prev = box.querySelector('input:checked');
+    const keep = prev ? prev.value : null;
+    box.querySelectorAll('.pkg-option').forEach(el => el.remove());
+    box.insertAdjacentHTML('beforeend', PACKAGE_ORDER.map(key => {
+      const p = PACKAGES[key];
+      return `<label class="pkg-option"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(key)}"><span class="pkg-card"><strong>${escapeHtml(p.label)}</strong><em>${money(p.price)}</em></span></label>`;
+    }).join(''));
+    const inputs = box.querySelectorAll('input');
+    if (!inputs.length) return;
+    const target = keep && box.querySelector(`input[value="${keep}"]`);
+    (target || inputs[0]).checked = true;
+  });
+}
+
 // ---------------------------------------------------------------
 // Owner settings
 // ---------------------------------------------------------------
@@ -414,6 +523,8 @@ async function init() {
   }
 
   renderAll();
+  await withDeadline(refreshPackages(), 8000);
+  renderPackagePickers();
   touchOwner();
   inboxPulse();
   setInterval(() => { renderAll(); }, 30000); // keeps clocks + cycle rolls fresh
@@ -695,7 +806,8 @@ function renderReport() {
     ? 'No bills yet — money starts accruing the day a tenure starts.'
     : `${rate >= 100 ? 'Collection rate' : 'Still collecting'} · you have received ${rate}% of the ${money(billed)} billed${rate >= 100 ? '' : ' so far'}.`;
 
-  const rows = PACKAGE_ORDER.map(key => {
+  const pkgOrder = packageKeysOrdered();
+  const rows = pkgOrder.map(key => {
     const pkg = PACKAGES[key];
     const members = tenants.filter(t => latestSeg(t).package === key);
     let mCollected = 0, mOut = 0, mCredit = 0;
@@ -716,7 +828,7 @@ function renderReport() {
   grid.innerHTML = rows.length
     ? rows.map((r, i) => `
       <div class="rp-row" style="animation-delay:${Math.min(i, 10) * 30}ms">
-        <div class="rp-idx">${PACKAGE_ORDER.indexOf(r.key) + 1}</div>
+        <div class="rp-idx">${pkgOrder.indexOf(r.key) + 1}</div>
         <div class="rp-main">
           <div class="rp-name">${r.pkg.label} <span>${money(r.pkg.price)}</span></div>
           <div class="rp-meta">${r.count} tenant${r.count === 1 ? '' : 's'} · ${r.active} active</div>
@@ -1058,7 +1170,7 @@ async function handleAdd(e) {
   e.preventDefault();
   const form = e.target;
   const fd = new FormData(form);
-  const pkg = PACKAGES[fd.get('package')];
+  const pkg = PACKAGES[fd.get('package')] || pkgOf(fd.get('package'));
   const name = String(fd.get('name') || '').trim();
   if (!name) return;
   const started = fd.get('started') || todayStr();
@@ -1076,7 +1188,7 @@ async function handleAdd(e) {
     phone: String(fd.get('phone') || '').trim(),
     openedOn: startMs,
     openingArrears: arrears,
-    segments: [{ id: uid(), package: pkg.key, start: startMs, end: null }],
+    segments: [{ id: uid(), package: pkg.key, start: startMs, end: null, price: pkg.price, days: pkg.days }],
     payments: [],
     accessPin: null,
     createdAt: nowIso(),
@@ -1370,7 +1482,7 @@ async function handleBack(e) {
   const awayEnd = latestSeg(t).end;
   if (awayEnd && dayMs(date) < dayMs(awayEnd)) date = awayEnd;
 
-  t.segments.push({ id: uid(), package: pkg.key, start: date, end: null });
+  t.segments.push({ id: uid(), package: pkg.key, start: date, end: null, price: pkg.price, days: pkg.days });
   const payAmount = Math.max(0, Math.round(Number(fd.get('payAmount')) || 0));
   const payMethod = fd.get('payMethod') === 'cash' ? 'cash' : 'mpesa';
   if (payAmount > 0) {
@@ -1404,9 +1516,10 @@ function nextCycleStart(t) {
   const seg = activeSegment(t);
   if (!seg) return null;
   const pkg = pkgOf(seg.package);
+  const { days } = segPriceDays(seg, pkg);
   const elapsed = Math.floor((dayMs(todayStr()) - dayMs(seg.start)) / DAY_MS);
-  const started = Math.floor(elapsed / pkg.days) + 1;
-  return addDays(seg.start, started * pkg.days);
+  const started = Math.floor(elapsed / days) + 1;
+  return addDays(seg.start, started * days);
 }
 
 function openChangeSheet(id) {
@@ -1451,7 +1564,7 @@ async function handleChange(e) {
   const start = nextCycleStart(t);
   const bound = fmtDate(start, true);
   seg.end = start;
-  t.segments.push({ id: uid(), package: nxt.key, start, end: null });
+  t.segments.push({ id: uid(), package: nxt.key, start, end: null, price: nxt.price, days: nxt.days });
   await persistTenant(t);
   await writeAudit({
     tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'package',
@@ -1524,14 +1637,24 @@ async function handleDeleteTenant() {
     danger: true,
   });
   if (!ok) return;
+  try {
+    await DB.remove(t.id);
+  } catch (err) {
+    toast(err && err.message ? err.message : 'Could not remove the tenant.');
+    return;
+  }
+  // Cloud row (and its segments/payments/thread) is gone — now clear this
+  // device's sidecars: access code, chat thread and presence.
+  purgeTenantLocals(t.id);
+  tenants = tenants.filter(x => x.id !== t.id);
+  syncToLocal();
+  // Logged AFTER the delete, with no tenant_id (the row is gone) but the
+  // name kept, so the Audit tab still shows that they were removed.
   await writeAudit({
-    tenantId: t.id, tenantName: t.name, unit: t.unit, kind: 'remove',
+    tenantId: null, tenantName: t.name, unit: t.unit, kind: 'remove',
     summary: `Removed ${t.name}${t.unit ? ' · ' + t.unit : ''} from the ledger`,
     detail: 'Their whole ledger — billed cycles and payment history — was deleted.',
   });
-  await DB.remove(t.id);
-  tenants = tenants.filter(x => x.id !== t.id);
-  syncToLocal();
   detailId = null;
   closeSheets();
   renderAll();
@@ -1947,6 +2070,98 @@ const ICONS = {
 // ---------------------------------------------------------------
 // Event wiring
 // ---------------------------------------------------------------
+// ---------------------------------------------------------------
+// Packages — Settings list + add / edit / switch off
+// ---------------------------------------------------------------
+function pkgSlug(label) {
+  return String(label || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'package';
+}
+
+async function renderPackages() {
+  const box = $('pkgList');
+  if (!box) return;
+  let rows = [];
+  try {
+    rows = await DB.getPackages();
+  } catch (e) {
+    box.innerHTML = `<p class="dim-empty">Could not load packages: ${escapeHtml(e.message || e)}</p>`;
+    return;
+  }
+  setPackages(rows);
+  renderPackagePickers();
+  if (!rows.length) {
+    box.innerHTML = '<p class="dim-empty">No packages yet — add one below.</p>';
+    return;
+  }
+  box.innerHTML = rows.map(p => `
+    <div class="team-row">
+      <div class="team-main">
+        <span class="team-name">${escapeHtml(p.label)}${p.active ? '' : ' <em>(switched off)</em>'}</span>
+        <span class="team-role">${money(p.price)} · ${p.days} day${p.days === 1 ? '' : 's'}</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" data-edit-pkg="${escapeHtml(p.key)}" type="button">Edit</button>
+      <button class="btn ${p.active ? 'btn-danger-ghost' : 'btn-primary'} btn-sm" data-toggle-pkg="${escapeHtml(p.key)}" data-active="${p.active ? '1' : '0'}" type="button">${p.active ? 'Switch off' : 'Switch on'}</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-edit-pkg]').forEach(b => b.addEventListener('click', () => editPackage(b.dataset.editPkg)));
+  box.querySelectorAll('[data-toggle-pkg]').forEach(b => b.addEventListener('click', () => togglePackage(b.dataset.togglePkg, b.dataset.active === '1')));
+}
+
+async function handleAddPackage(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const label = String(fd.get('pkgLabel') || '').trim();
+  const price = Math.round(Number(fd.get('pkgPrice')) || 0);
+  const days = Math.max(1, Math.round(Number(fd.get('pkgDays')) || 1));
+  if (!label || price <= 0) { toast('Enter a name and a price greater than zero.'); return; }
+  try {
+    const base = pkgSlug(label);
+    const existing = new Set((await DB.getPackages()).map(p => p.key));
+    let key = base, i = 2;
+    while (existing.has(key)) key = `${base}-${i++}`;
+    await DB.addPackage({ key, label, price, days, sortOrder: 100 });
+    e.target.reset();
+    e.target.pkgDays.value = '7';
+    await renderPackages();
+    toast(`${label} · ${money(price)} added.`);
+    await writeAudit({ tenantId: null, kind: 'other', summary: `Added package ${label} · ${money(price)}`, detail: `${days}-day cycle.` });
+  } catch (err) {
+    toast('Could not add the package: ' + (err && err.message ? err.message : String(err)));
+  }
+}
+
+async function togglePackage(key, isActive) {
+  try {
+    await DB.updatePackage(key, { active: !isActive });
+    await renderPackages();
+    toast(isActive ? 'Package switched off — new sign-ups won\'t see it.' : 'Package switched back on.');
+  } catch (err) {
+    toast('Could not update the package: ' + (err && err.message ? err.message : String(err)));
+  }
+}
+
+async function editPackage(key) {
+  const current = PACKAGES[key];
+  if (!current) return;
+  const label = window.prompt('Package name:', current.label);
+  if (label === null) return;
+  const priceStr = window.prompt('Price (KSh):', String(current.price));
+  if (priceStr === null) return;
+  const daysStr = window.prompt('Cycle length (days):', String(current.days));
+  if (daysStr === null) return;
+  const price = Math.round(Number(priceStr) || 0);
+  const days = Math.max(1, Math.round(Number(daysStr) || 1));
+  if (!String(label).trim() || price <= 0) { toast('A name and a price above zero are required.'); return; }
+  try {
+    await DB.updatePackage(key, { label: String(label).trim(), price, days });
+    await renderPackages();
+    toast('Package updated. New cycles use the new price; already-billed ones are untouched.');
+    await writeAudit({ tenantId: null, kind: 'other', summary: `Edited package ${String(label).trim()} · ${money(price)}`, detail: `${days}-day cycle.` });
+  } catch (err) {
+    toast('Could not update the package: ' + (err && err.message ? err.message : String(err)));
+  }
+}
+
 function wireEvents() {
   document.querySelectorAll('.nav-tab').forEach(btn => btn.addEventListener('click', () => {
     view = btn.dataset.tab;
@@ -2005,9 +2220,11 @@ function wireEvents() {
   $('backForm').addEventListener('submit', handleBack);
   $('backForm').backDate.addEventListener('change', refreshBackPreview);
   $('backForm').payAmount.addEventListener('input', refreshBackPreview);
-  $('backForm').querySelectorAll('input[name="backPackage"]').forEach(r => r.addEventListener('change', refreshBackPreview));
+  // Delegated: the radio options are re-rendered whenever the catalogue
+  // loads, so per-input listeners would be thrown away.
+  $('backForm').addEventListener('change', e => { if (e.target.name === 'backPackage') refreshBackPreview(); });
   $('changeForm').addEventListener('submit', handleChange);
-  $('changeForm').querySelectorAll('input[name="changePackage"]').forEach(r => r.addEventListener('change', refreshChangePreview));
+  $('changeForm').addEventListener('change', e => { if (e.target.name === 'changePackage') refreshChangePreview(); });
 
   $('editBtn').addEventListener('click', () => { if (detailId) openEditSheet(detailId); });
   $('editForm').addEventListener('submit', handleEdit);
@@ -2017,9 +2234,10 @@ function wireEvents() {
   $('modalOk').addEventListener('click', () => settleModal(true));
   $('modal').addEventListener('click', e => { if (e.target === $('modal')) settleModal(false); });
 
-  $('settingsBtn').addEventListener('click', () => { renderTeam(); openSettingsSheet(); });
+  $('settingsBtn').addEventListener('click', () => { renderTeam(); renderPackages(); openSettingsSheet(); });
   $('settingsForm').addEventListener('submit', handleSettings);
   $('addOpForm').addEventListener('submit', handleAddOperator);
+  $('addPkgForm').addEventListener('submit', handleAddPackage);
   $('changePwdForm').addEventListener('submit', handleChangePassword);
   $('logoutBtn').addEventListener('click', async () => {
     try { await supabaseClient.auth.signOut(); } catch (e) { /* leave anyway */ }

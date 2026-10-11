@@ -21,7 +21,7 @@
 
   // Keep in step with VERSION in sw.js - if they differ the worker is
   // told to take over immediately.
-  var SW_VERSION = 'v1';
+  var SW_VERSION = 'v2';
 
   var DISMISS_KEY  = 'faiba-pwa-dismissed';
   var DISMISS_MS   = 30 * 24 * 60 * 60 * 1000;

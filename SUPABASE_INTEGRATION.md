@@ -28,6 +28,19 @@
   inbox/presence mock still read `localStorage` (`faiba_messages_v2` /
   `faiba_presence_v2`). Message threads only sync between pages opened on the
   same device/browser. See Phase 2 below for the hosted plan.
+- ✅ **Deleting a tenant is complete (migration `…090000`).** Deleting a
+  `tenants` row already CASCADEd to its segments and payments; a
+  `BEFORE DELETE` trigger now also removes the tenant's chat thread, and the
+  manager clears its own per-tenant caches (access code, chat, presence).
+  `DB.remove` verifies a row was actually deleted instead of silently
+  reporting success.
+- ✅ **Packages are data, not code (migration `…090100`).** A `packages`
+  table holds the catalogue (`key`, `label`, `price`, `days`, `active`,
+  `sort_order`); the manager adds/edits/switches packages off in
+  **Settings → Packages**. `segments` gained `price` + `days` — a frozen
+  snapshot of what was sold — so editing a package only affects cycles that
+  start afterwards. The old `segments_package_check` is now a real foreign
+  key to `packages(key)`.
 
 ## Files
 
@@ -62,7 +75,7 @@ A tenant is now a **billing account** made of three stored facts:
 | Fact | What it stores |
 |------|----------------|
 | `tenants` | identity (name, unit, phone), `opened_on`, `opening_arrears` |
-| `segments` | every stretch of time on the network: package, `start_date`, `end_date` (`NULL` = currently active) |
+| `segments` | every stretch of time on the network: package, `start_date`, `end_date` (`NULL` = currently active), plus `price` + `days` — a frozen snapshot of what was sold on that tenure |
 | `payments` | every shilling received: date, amount, M-Pesa `ref`, note |
 
 Nothing else is stored. Balances, arrears, prepaid credit, per-cycle
@@ -344,6 +357,57 @@ stays but `ensureOperator()` in `app.js` signs them out on next visit
   the cloud write ever fails; a failed audit write never blocks the action it
   logs.
 
+## 5c. Complete deletion & editable packages (live in migrations `…090000` + `…090100`)
+
+### Deleting a tenant completely
+
+Deleting a `tenants` row was already correct in the cloud — `segments` and
+`payments` CASCADE. The leftovers were:
+
+- the chat thread (`messages.thread_id` = md5 of the tenant id, with **no FK**
+  back to `tenants`), and
+- this device's local sidecars: the access code (`faiba_access_pins_v1`), the
+  chat (`faiba_messages_v2`) and presence (`faiba_presence_v2`).
+
+Migration `…090000` adds `delete_tenant_messages()`, a `BEFORE DELETE` trigger
+on `tenants` that removes the tenant's thread. The manager's
+`purgeTenantLocals(id)` clears the local caches, and `DB.remove()` now uses
+`.delete().select('id')` so a delete that removed **zero** rows is reported as
+an error rather than looking like success. The audit log keeps a single
+"Removed …" entry (its `tenant_id` is null, but the name is denormalised), by
+design — the trail survives the tenant.
+
+### Packages you manage from Settings
+
+The package list used to live in `ledger-core.js` (`PACKAGES`) and a CHECK
+constraint on `segments`. It is now a table:
+
+```sql
+create table public.packages (
+  key text primary key,
+  label text not null,
+  price numeric not null check (price >= 0),
+  days integer not null check (days > 0),
+  active boolean not null default true,
+  sort_order integer not null default 100,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+- **RLS:** operators (`owner` + `admin`) manage the table; everyone (including
+  the `anon` tenant page) may read it.
+- **Settings → Packages** lists them with Edit / Switch off. Adding one
+  generates a slug key (e.g. "Weekly 250" → `weekly-250`). A package that is
+  in use cannot be deleted (the FK refuses); switch it off instead.
+- **Price snapshots.** `ledger-core.js` reads `seg.price` / `seg.days` when
+  present, falling back to the catalogue only for rows written before the
+  snapshot existed. Changing a package's price therefore only affects cycles
+  that start afterwards — it never re-bills history. This is why the snapshot
+  columns exist; do not remove them.
+- **`tenant_login()`** returns `price` + `days` per segment so the tenant page
+  shows exactly what the manager shows.
+
 ## 6. Multi-device sync (optional)
 
 Because all money is recomputed from stored facts, realtime is trivial and
@@ -440,8 +504,11 @@ plus the same mapping.
 
 ## What NOT to change
 
-- `ledger-core.js`: `PACKAGES`, `analyze`, `buildCharges`, `simulateClose`,
-  `migrateV1`, `normalizePhone` — pure logic shared by both pages.
+- `ledger-core.js`: `analyze`, `buildCharges`, `simulateClose`, `migrateV1`,
+  `normalizePhone` — pure logic shared by both pages. Note `PACKAGES` is now a
+  mutable registry filled by `setPackages()` from the cloud catalogue (with
+  `DEFAULT_PACKAGES` as the offline fallback); `pkgOf` / `segPriceDays` read it.
+  Render the package pickers from `PACKAGE_ORDER`, never hardcode options.
 - Every `render*` function and the DOM event wiring in `app.js` and
   `app-tenant.js`.
 - The demo `login.html` gate, `tenant.html`, `index.html` / `style.css` —

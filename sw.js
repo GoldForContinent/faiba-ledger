@@ -14,7 +14,7 @@
    Load order is irrelevant here: the browser fetches this file.
 =================================================================== */
 
-const VERSION   = 'v1';
+const VERSION   = 'v2';
 const SHELL     = `faiba-shell-${VERSION}`;
 const VENDOR    = `faiba-vendor-${VERSION}`;
 const KEEP      = [SHELL, VENDOR];

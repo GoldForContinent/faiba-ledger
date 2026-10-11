@@ -208,14 +208,7 @@
 
     <fieldset class="pkg-picker" data-name="package">
       <legend>Package</legend>
-      <label class="pkg-option"><input type="radio" name="package" value="daily" checked><span class="pkg-card"><strong>Daily</strong><em>Sh 30</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="weekly-180"><span class="pkg-card"><strong>Weekly</strong><em>Sh 180</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="weekly-210"><span class="pkg-card"><strong>Weekly</strong><em>Sh 210</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="weekly"><span class="pkg-card"><strong>Weekly</strong><em>Sh 200</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="monthly-500"><span class="pkg-card"><strong>Monthly</strong><em>Sh 500</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="monthly-700"><span class="pkg-card"><strong>Monthly</strong><em>Sh 700</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="monthly-1000"><span class="pkg-card"><strong>Monthly</strong><em>Sh 1000</em></span></label>
-      <label class="pkg-option"><input type="radio" name="package" value="monthly"><span class="pkg-card"><strong>Monthly</strong><em>Sh 800</em></span></label>
+      <!-- options are rendered from the live catalogue in app.js -->
     </fieldset>
 
     <div class="field-note">Already on your network? Set the day they <b>started using it</b> — every cycle since that day is billed automatically, so the balance is honest from day one.</div>
@@ -393,14 +386,7 @@
     </div>
     <fieldset class="pkg-picker" data-name="backPackage">
       <legend>Package for the new tenure</legend>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="daily"><span class="pkg-card"><strong>Daily</strong><em>Sh 30</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="weekly-180"><span class="pkg-card"><strong>Weekly</strong><em>Sh 180</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="weekly-210"><span class="pkg-card"><strong>Weekly</strong><em>Sh 210</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="weekly"><span class="pkg-card"><strong>Weekly</strong><em>Sh 200</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly-500"><span class="pkg-card"><strong>Monthly</strong><em>Sh 500</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly-700"><span class="pkg-card"><strong>Monthly</strong><em>Sh 700</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly-1000"><span class="pkg-card"><strong>Monthly</strong><em>Sh 1000</em></span></label>
-      <label class="pkg-option"><input type="radio" name="backPackage" value="monthly"><span class="pkg-card"><strong>Monthly</strong><em>Sh 800</em></span></label>
+      <!-- options are rendered from the live catalogue in app.js -->
     </fieldset>
     <div class="preview" id="backPreview"></div>
     <div class="divider"><span>Payment now <em>optional</em></span></div>
@@ -442,14 +428,7 @@
   <form id="changeForm" autocomplete="off">
     <fieldset class="pkg-picker" data-name="changePackage">
       <legend>New package</legend>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="daily"><span class="pkg-card"><strong>Daily</strong><em>Sh 30</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="weekly-180"><span class="pkg-card"><strong>Weekly</strong><em>Sh 180</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="weekly-210"><span class="pkg-card"><strong>Weekly</strong><em>Sh 210</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="weekly"><span class="pkg-card"><strong>Weekly</strong><em>Sh 200</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="monthly-500"><span class="pkg-card"><strong>Monthly</strong><em>Sh 500</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="monthly-700"><span class="pkg-card"><strong>Monthly</strong><em>Sh 700</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="monthly-1000"><span class="pkg-card"><strong>Monthly</strong><em>Sh 1000</em></span></label>
-      <label class="pkg-option"><input type="radio" name="changePackage" value="monthly"><span class="pkg-card"><strong>Monthly</strong><em>Sh 800</em></span></label>
+      <!-- options are rendered from the live catalogue in app.js -->
     </fieldset>
     <div class="preview" id="changePreview"></div>
     <div class="sheet-actions">
@@ -521,6 +500,24 @@
   <div class="divider"><span>Cloud data</span></div>
   <div class="field-note">If this device still has tenants that aren't in the online ledger, copy them up once — anything already online is skipped.</div>
   <button type="button" class="btn btn-ghost btn-block" id="uploadCloudBtn">Upload this device's tenants to the cloud</button>
+  <div class="divider"><span>Packages — what you sell</span></div>
+  <div class="field-note">Add, rename, re-price or switch off a package. Changing a price only affects cycles that start after the change — everything already billed keeps the price it was sold at.</div>
+  <div id="pkgList" class="team-list"></div>
+  <form id="addPkgForm" class="team-form" autocomplete="off">
+    <label class="field">
+      <span>Name</span>
+      <input name="pkgLabel" placeholder="e.g. Weekly 250" required>
+    </label>
+    <label class="field">
+      <span>Price (KSh)</span>
+      <input name="pkgPrice" type="number" min="1" step="1" placeholder="250" required>
+    </label>
+    <label class="field">
+      <span>Cycle length (days)</span>
+      <input name="pkgDays" type="number" min="1" step="1" value="7" required>
+    </label>
+    <button type="submit" class="btn btn-primary btn-block" id="addPkgBtn">Add package</button>
+  </form>
   <div class="divider"><span>Team — who runs the ledger</span></div>
   <div class="field-note">Add someone you trust to help run the ledger. They sign in with the email and password you give them, and can change their own password.</div>
   <div id="teamList" class="team-list"></div>
