@@ -145,11 +145,13 @@ function requireCloud() {
 
 const DB = {
   async getAll() {
-    const { data: rows, error: tErr } = await supabaseClient.from('tenants').select('*').order('created_at');
+    const [{ data: rows, error: tErr }, { data: segs, error: sErr }, { data: pays, error: pErr }] = await Promise.all([
+      supabaseClient.from('tenants').select('*').order('created_at'),
+      supabaseClient.from('segments').select('*'),
+      supabaseClient.from('payments').select('*'),
+    ]);
     if (tErr) throw tErr;
-    const { data: segs, error: sErr } = await supabaseClient.from('segments').select('*');
     if (sErr) throw sErr;
-    const { data: pays, error: pErr } = await supabaseClient.from('payments').select('*');
     if (pErr) throw pErr;
     const pins = loadPins();
     return (rows || []).map(row => ({
