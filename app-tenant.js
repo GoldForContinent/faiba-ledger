@@ -89,6 +89,14 @@ function withDeadline(work, ms) {
   ]).then(v => { clearTimeout(timer); return v; });
 }
 
+// Logs that this tenant viewed their balance. Uses a security-definer RPC
+// so the tenant page (no auth session) can write to audit_log.
+async function logTenantView(tenantId) {
+  const c = initSupabaseClient();
+  if (!c) return;
+  await c.rpc('log_tenant_view', { p_tenant_id: tenantId }).catch(() => {});
+}
+
 // The real hosted login: the phone + code are verified server-side by
 // the tenant_login() RPC, which returns that tenant's own ledger or
 // null. This is what lets a client on their own phone (empty
@@ -125,9 +133,8 @@ async function attemptLogin(phone, pin) {
 
   const h = await tenantLoginHosted(String(phone || '').trim(), String(pin || '').trim());
   if (h.tried) {
-    if (h.tenant) { await loadPackages(); current = h.tenant; renderAccount(h.tenant); showAccount(); return; }
-    tErr('That code does not match. Double-check it, or ask the owner to send a new one.');
-    return;
+    if (h.tenant) { await loadPackages(); current = h.tenant; renderAccount(h.tenant); logTenantView(h.tenant.id); showAccount(); return; }
+    tErr('That code does not match. Double-check it, or ask the owner to send a new one.'); return;
   }
 
   // Offline / demo fallback: the ledger saved on this device.
@@ -142,6 +149,7 @@ async function attemptLogin(phone, pin) {
   if (String(t.accessPin) !== String(pin).trim()) { tErr('That code does not match. Double-check it, or ask the owner to send a new one.'); return; }
   current = t;
   renderAccount(t);
+  logTenantView(t.id);
   showAccount();
 }
 

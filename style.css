@@ -343,6 +343,12 @@ button { cursor: pointer; }
   border-color: var(--glass-2);
   color: var(--ink-2);
 }
+.audit-filters {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
 .chip-owing.is-active { background: var(--danger); border-color: var(--danger); }
 
 /* ------------------------------------------------------------------

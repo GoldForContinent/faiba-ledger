@@ -284,6 +284,7 @@ function auditIcon(kind) {
   if (kind === 'package') return '🔄';
   if (kind === 'edit') return '✏️';
   if (kind === 'access') return '🔑';
+  if (kind === 'tenant_view') return '👁️';
   return '📝';
 }
 
@@ -367,6 +368,7 @@ async function loadAudit() {
 let tenants = [];
 let view = 'tenants';            // 'tenants' | 'inbox' | 'collect' | 'report' | 'audit'
 let filter = 'all';              // all | active | away | owing
+let auditFilter = 'all';         // all | tenant
 let search = '';
 let detailId = null;             // tenant whose detail sheet is open
 let reportMode = 'month';        // 'month' | 'all'
@@ -859,14 +861,16 @@ function renderReport() {
 async function renderAudit() {
   const box = $('auditList');
   const rows = await loadAudit();
-  const shown = rows.slice(0, 60);
+  const shown = auditFilter === 'tenant'
+    ? rows.filter(r => r.kind === 'tenant_view').slice(0, 60)
+    : rows.slice(0, 60);
   box.innerHTML = shown.length
     ? shown.map((r, i) => {
         const who = r.tenant_name || tenantName(r.tenant_id) || '(removed tenant)';
         const unit = r.unit || '';
         const cls = r.kind === 'payment' ? 'ok'
           : r.kind === 'away' || r.kind === 'remove' ? 'warn'
-          : r.kind === 'access' ? 'ok'
+          : r.kind === 'access' || r.kind === 'tenant_view' ? 'ok'
           : '';
         return `
         <div class="au-row" style="animation-delay:${Math.min(i, 12) * 24}ms">
@@ -879,7 +883,9 @@ async function renderAudit() {
           <div class="au-time">${fmtAuditTs(r.ts)}</div>
         </div>`;
       }).join('')
-    : '<p class="dim-empty">No activity logged yet. Changes you make to the ledger will appear here.</p>';
+    : auditFilter === 'tenant'
+      ? '<p class="dim-empty">No tenant balance views logged yet. When a tenant opens their balance page, it will appear here.</p>'
+      : '<p class="dim-empty">No activity logged yet. Changes you make to the ledger will appear here.</p>';
 }
 
 function fmtAuditTs(ts) {
@@ -2248,6 +2254,19 @@ function wireEvents() {
     if (!chip) return;
     reportMode = chip.dataset.rm;
     renderReport();
+  });
+
+  $('auditFilterAll').addEventListener('click', () => {
+    auditFilter = 'all';
+    $('auditFilterAll').classList.add('is-active');
+    $('auditFilterTenant').classList.remove('is-active');
+    renderAudit();
+  });
+  $('auditFilterTenant').addEventListener('click', () => {
+    auditFilter = 'tenant';
+    $('auditFilterTenant').classList.add('is-active');
+    $('auditFilterAll').classList.remove('is-active');
+    renderAudit();
   });
 
   BACKDROP.addEventListener('click', closeSheets);

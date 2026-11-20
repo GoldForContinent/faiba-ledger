@@ -148,6 +148,10 @@
   <section class="view" id="view-audit" hidden>
     <div class="report-head">
       <h1 class="view-title">Audit log</h1>
+      <div class="audit-filters">
+        <button class="chip chip-active" id="auditFilterAll" type="button">All activity</button>
+        <button class="chip" id="auditFilterTenant" type="button">Tenant visits</button>
+      </div>
     </div>
     <p class="report-headline">A trail of every change made to the ledger — who did what and when.</p>
     <div class="audit-list" id="auditList"></div>
