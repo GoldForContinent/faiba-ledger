@@ -256,8 +256,8 @@ function buildCharges(t, refMs) {
     if (!seg.end) {
       const started = Math.floor(elapsed / D) + 1;
       for (let k = 0; k < started; k++) {
-        const cStart = S + k * D;
-        const cEnd = S + (k + 1) * D - DAY_MS;
+        const cStart = S + k * D * DAY_MS;
+        const cEnd = S + (k + 1) * D * DAY_MS - DAY_MS;
         charges.push({
           kind: 'cycle',
           date: cStart,
@@ -270,8 +270,8 @@ function buildCharges(t, refMs) {
       const full = Math.floor(elapsed / D);
       const rem = elapsed - full * D;
       for (let k = 0; k < full; k++) {
-        const cStart = S + k * D;
-        const cEnd = S + (k + 1) * D - DAY_MS;
+        const cStart = S + k * D * DAY_MS;
+        const cEnd = S + (k + 1) * D * DAY_MS - DAY_MS;
         charges.push({
           kind: 'cycle',
           date: cStart,
@@ -281,7 +281,7 @@ function buildCharges(t, refMs) {
         });
       }
       if (rem > 0) {
-        const cStart = S + full * D;
+        const cStart = S + full * D * DAY_MS;
         const amount = Math.round((C * rem) / D);
         charges.push({
           kind: 'partial',
