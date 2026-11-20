@@ -205,7 +205,7 @@ function renderAccount(t) {
       </div>`;
   }
 
-  const cxSorted = [...a.charges].sort((x, y) => (y.date - x.date) || (y.seq - x.seq)).slice(0, 6);
+  const cxSorted = [...a.charges].sort((x, y) => (y.date - x.date) || (y.seq - x.seq));
   $('acCycles').innerHTML = cxSorted.length ? cxSorted.map(c => {
     const fullyPaid = c.covered >= c.amount;
     const cls = fullyPaid ? 'ok' : c.covered > 0 ? 'part' : 'unpaid';
@@ -226,7 +226,7 @@ function renderAccount(t) {
     </li>`;
   }).join('') : '<li class="cx-more">Nothing billed yet.</li>';
 
-  const pays = [...(t.payments || [])].sort((x, y) => (dayMs(y.date) - dayMs(x.date))).slice(0, 6);
+  const pays = [...(t.payments || [])].sort((x, y) => (dayMs(y.date) - dayMs(x.date)));
   $('acPays').innerHTML = pays.length ? pays.map(p => `
     <li class="py-row">
       <span class="py-amt">${money(p.amount)}</span>
