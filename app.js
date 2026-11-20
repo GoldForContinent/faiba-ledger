@@ -1631,7 +1631,21 @@ async function handleEdit(e) {
   };
   if (setBalance !== null) {
     const cur = analyze(t);
-    patch.openingArrears = Math.max(0, Math.round(t.openingArrears + (setBalance - cur.balance)));
+    const diff = setBalance - cur.balance;
+    if (diff > 0) {
+      patch.openingArrears = Math.max(0, Math.round(t.openingArrears + diff));
+    } else if (diff < 0) {
+      const adj = Math.round(-diff);
+      t.payments.push({
+        id: uid(),
+        date: todayStr(),
+        amount: adj,
+        method: 'cash',
+        ref: null,
+        note: `Balance adjustment to ${money(setBalance)}`,
+        recorded_by: auditOperatorName(),
+      });
+    }
   }
   const newStart = fd.get('firstStart') || t.segments[0].start;
   if (t.segments[0] && newStart !== t.segments[0].start) {
