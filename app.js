@@ -1498,6 +1498,12 @@ async function handleBack(e) {
   const awayEnd = latestSeg(t).end;
   if (awayEnd && dayMs(date) < dayMs(awayEnd)) date = awayEnd;
 
+  // Close any still-open segment so we never bill two active tenures at once.
+  const openSeg = activeSegment(t);
+  if (openSeg) {
+    openSeg.end = date;
+  }
+
   t.segments.push({ id: uid(), package: pkg.key, start: date, end: null, price: pkg.price, days: pkg.days });
   const payAmount = Math.max(0, Math.round(Number(fd.get('payAmount')) || 0));
   const payMethod = fd.get('payMethod') === 'cash' ? 'cash' : 'mpesa';
@@ -1637,6 +1643,14 @@ async function handleEdit(e) {
     if (!ok) return;
     t.segments[0].start = newStart;
   }
+
+  // Guard: never save with two open (end_date null) segments — close all but
+  // the most recently started one so balances can't double-bill.
+  const opens = t.segments.filter(s => !s.end).sort((a, b) => dayMs(a.start) - dayMs(b.start));
+  for (let i = 0; i < opens.length - 1; i++) {
+    opens[i].end = opens[opens.length - 1].start;
+  }
+
   Object.assign(t, patch);
   await persistTenant(t);
   await writeAudit({
