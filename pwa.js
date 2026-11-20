@@ -173,9 +173,10 @@
       ? ['Tap the <b>Share</b> button in Safari (the square with an arrow pointing up).',
          'Scroll down and tap <b>Add to Home Screen</b>.',
          'Tap <b>Add</b> in the top right.']
-      : ['Open your browser menu (<b>⋮</b> or <b>⋯</b>).',
+      : ['Open <b>Chrome</b> (not Mi Browser / Mint Browser — they do not support app install).',
+         'Tap the <b>⋮</b> menu in the top right.',
          'Choose <b>Install app</b> or <b>Add to Home screen</b>.',
-         'Confirm to add the Faiba Ledger icon.'];
+         'Confirm to add the Faiba Ledger icon.']
 
     sheet = document.createElement('div');
     sheet.className = 'pwa-help';
@@ -189,6 +190,7 @@
         '<h2 class="pwa-help-title">Put Faiba Ledger on your ' +
           (isIOS() ? 'home screen' : 'device') + '</h2>' +
         '<p class="pwa-help-sub">Then tap the icon to open the ledger full screen — no address bar, and it opens even with no signal.</p>' +
+        '<p class="pwa-help-xiaomi"><strong>Xiaomi / Redmi tip:</strong> use Chrome. If you do not see "Install app", open the site in Chrome a few times — the option appears after you have visited it more than once.</p>' +
         '<ol class="pwa-help-steps">' +
           steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') +
         '</ol>' +
@@ -283,7 +285,7 @@
       setTimeout(function () { location.reload(); }, 900);
     });
 
-    navigator.serviceWorker.register('sw.js', { scope: './' })
+    navigator.serviceWorker.register('sw.js', { scope: '/' })
       .then(function (reg) {
         if (reg.waiting && hadController) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         reg.addEventListener('updatefound', function () {
