@@ -687,6 +687,12 @@ function renderTenantList() {
     e.stopPropagation();
     sendWhatsApp(b.dataset.id);
   }));
+  list.querySelectorAll('[data-act="rm"]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    payContextTenantId = b.dataset.id;
+    const t = tenants.find(x => x.id === b.dataset.id);
+    if (t) handleDeleteTenant();
+  }));
 }
 
 function tenantCard(t, a, i) {
@@ -720,6 +726,9 @@ function tenantCard(t, a, i) {
       <div class="trow-btns">
         <button class="icon-btn" data-act="wa" data-id="${t.id}" title="WhatsApp" aria-label="WhatsApp ${escapeHtml(t.name)}">
           ${ICONS.wa}
+        </button>
+        <button class="icon-btn icon-btn-del" data-act="rm" data-id="${t.id}" title="Remove from ledger" aria-label="Remove ${escapeHtml(t.name)}">
+          ${ICONS.x}
         </button>
         <span class="dot ${away ? 'away' : (a.state === 'owed' ? 'amber' : 'green')}"></span>
       </div>
