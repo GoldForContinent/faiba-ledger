@@ -1606,6 +1606,8 @@ function openEditSheet(id) {
   form.phone.value = t.phone || '';
   form.firstStart.value = t.segments[0] ? t.segments[0].start : t.openedOn;
   form.arrears.value = t.openingArrears || 0;
+  const cur = analyze(t);
+  form.setBalance.placeholder = `current ${money(cur.balance)}`;
   openSheet('editSheet');
 }
 
@@ -1614,12 +1616,17 @@ async function handleEdit(e) {
   const t = tenants.find(x => x.id === payContextTenantId);
   if (!t) return;
   const fd = new FormData(e.target);
+  const setBalance = Number(fd.get('setBalance')) || null;
   const patch = {
     name: String(fd.get('name') || '').trim(),
     unit: String(fd.get('unit') || '').trim(),
     phone: String(fd.get('phone') || '').trim(),
     openingArrears: Math.max(0, Math.round(Number(fd.get('arrears')) || 0)),
   };
+  if (setBalance !== null) {
+    const cur = analyze(t);
+    patch.openingArrears = Math.max(0, Math.round(t.openingArrears + (setBalance - cur.balance)));
+  }
   const newStart = fd.get('firstStart') || t.segments[0].start;
   if (t.segments[0] && newStart !== t.segments[0].start) {
     const ok = await confirmDialog({
